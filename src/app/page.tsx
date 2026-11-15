@@ -18,7 +18,12 @@ import {
   ChevronRight,
   SlidersHorizontal,
   BookmarkCheck,
-  Trash2
+  Trash2,
+  Bot,
+  ShieldCheck,
+  Languages,
+  MessageCircle,
+  HelpCircle
 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
@@ -30,6 +35,9 @@ import { MorphologyAnalyzer } from '@/components/MorphologyAnalyzer';
 import { CultureEncyclopedia } from '@/components/CultureEncyclopedia';
 import { QuizGame } from '@/components/QuizGame';
 import { BudayaGoInfo } from '@/components/BudayaGoInfo';
+import { KakaAI } from '@/components/KakaAI';
+import { AdminCollaboration } from '@/components/AdminCollaboration';
+import { AudioSpeechStudio } from '@/components/AudioSpeechStudio';
 
 import rawDictionary from '@/data/mandar_dictionary.json';
 
@@ -85,7 +93,7 @@ export default function Home() {
   // Detail Modal state
   const [selectedEntry, setSelectedEntry] = useState<DictionaryEntry | null>(null);
 
-  // Sub-tab navigation parameter (e.g. from modal to lab)
+  // Sub-tab navigation parameter (e.g. from modal to lab or Kaka-AI)
   const [labWord, setLabWord] = useState('madondong');
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -137,18 +145,19 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Filtered entries
+  // Filtered entries across Mandar, Indonesian, and English!
   const filteredEntries = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
     return ALL_ENTRIES.filter((entry) => {
-      // 1. Text Search Query
+      // 1. Text Search Query in 3 languages
       if (query) {
         const matchLemma = entry.lemma.toLowerCase().includes(query);
         const matchDef = entry.definition.toLowerCase().includes(query);
+        const matchDefEn = entry.definitionEn?.toLowerCase().includes(query) || false;
         const matchExample = entry.exampleMandar?.toLowerCase().includes(query) || false;
         const matchRoot = entry.rootWord?.toLowerCase().includes(query) || false;
-        if (!matchLemma && !matchDef && !matchExample && !matchRoot) {
+        if (!matchLemma && !matchDef && !matchDefEn && !matchExample && !matchRoot) {
           return false;
         }
       }
@@ -202,9 +211,6 @@ export default function Home() {
     setSelectedEntry(ALL_ENTRIES[randomIdx]);
   };
 
-  // Featured word for the Day
-  const featuredWord = ALL_ENTRIES.find(e => e.lemma === 'sandeq') || ALL_ENTRIES[0];
-
   return (
     <div className="min-h-screen flex flex-col bg-mandar-sand-50/50 dark:bg-slate-950 bg-saqbe-pattern transition-colors">
       
@@ -223,7 +229,7 @@ export default function Home() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
         
         {/* ======================================================== */}
-        {/* TAB 1: KAMUS LEKSIKON DIGITAL (MAIN SEARCH HUB) */}
+        {/* TAB 1: KAMUS LEKSIKON DIGITAL (TRILINGUAL: MDR - IDN - ENG) */}
         {/* ======================================================== */}
         {activeTab === 'kamus' && (
           <div className="space-y-8 animate-in fade-in duration-300">
@@ -238,16 +244,16 @@ export default function Home() {
 
               <div className="relative z-10 max-w-3xl">
                 <div className="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full bg-mandar-gold-500/20 text-mandar-gold-300 border border-mandar-gold-400/30 text-xs font-semibold mb-4">
-                  <Sparkles className="w-3.5 h-3.5 text-mandar-gold-400" />
-                  <span>Kamus Digital Mandar-Indonesia Terlengkap • 4.443 Entri Lema</span>
+                  <Languages className="w-3.5 h-3.5 text-mandar-gold-400" />
+                  <span>Kamus Multifungsi 3 Bahasa (Mandar • Indonesia • English) • 4.443 Lema</span>
                 </div>
 
                 <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
                   Jelajahi Bahasa & Kebudayaan Suku Mandar
                 </h1>
                 <p className="text-mandar-sand-200 text-sm sm:text-base leading-relaxed mb-8 max-w-2xl">
-                  Pencarian dwi-arah cerdas Mandar ⇄ Indonesia dengan transliterasi Aksara Lontara, 
-                  panduan fonetik alofon, dekomposisi morfologi, serta audio pengucapan asli.
+                  Pencarian trilingual cerdas Mandar ⇄ Indonesia ⇄ English dengan transliterasi Aksara Lontara, 
+                  panduan fonetik alofon, dekomposisi morfologi, serta audio pengucapan kata dan kalimat panjang.
                 </p>
 
                 {/* Main Search Input */}
@@ -263,7 +269,7 @@ export default function Home() {
                       setSearchQuery(e.target.value);
                       setCurrentPage(1);
                     }}
-                    placeholder="Cari lema Mandar atau arti bahasa Indonesia (misal: sandeq, boyang, tabe, perahu, sutra)..."
+                    placeholder="Cari lema Mandar, arti Indonesia, atau English (misal: sandeq, boyang, tabe, boat, house, sutra)..."
                     className="w-full py-3.5 px-2 bg-transparent text-stone-800 dark:text-white placeholder-stone-400 text-base sm:text-lg outline-none font-medium"
                   />
                   {searchQuery && (
@@ -408,20 +414,29 @@ export default function Home() {
                 </h3>
                 <p className="text-xs text-stone-500 dark:text-slate-400 leading-relaxed">
                   Tidak ditemukan lema yang cocok dengan kriteria pencarian Anda. 
-                  Coba ubah kata kunci atau reset filter abjad dan kategori.
+                  Coba ubah kata kunci atau tanyakan langsung kepada <strong>Kaka-AI</strong>.
                 </p>
-                <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setSelectedCategory('Semua Kategori');
-                    setSelectedPos('all');
-                    setSelectedLetter('SEMUA');
-                    setCurrentPage(1);
-                  }}
-                  className="px-5 py-2.5 rounded-xl bg-mandar-maroon-700 text-white font-semibold text-xs hover:bg-mandar-maroon-800"
-                >
-                  Reset Semua Filter
-                </button>
+                <div className="flex items-center justify-center space-x-3">
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSelectedCategory('Semua Kategori');
+                      setSelectedPos('all');
+                      setSelectedLetter('SEMUA');
+                      setCurrentPage(1);
+                    }}
+                    className="px-5 py-2.5 rounded-xl bg-stone-200 dark:bg-slate-700 text-stone-800 dark:text-white font-semibold text-xs"
+                  >
+                    Reset Filter
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('kaka')}
+                    className="px-5 py-2.5 rounded-xl bg-mandar-maroon-700 text-white font-semibold text-xs hover:bg-mandar-maroon-800 flex items-center space-x-1"
+                  >
+                    <Bot className="w-4 h-4" />
+                    <span>Tanya Kaka-AI</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -484,42 +499,67 @@ export default function Home() {
         )}
 
         {/* ======================================================== */}
-        {/* TAB 2: LAB FONOLOGI & ALOFON */}
+        {/* TAB 2: ASISTEN AI KAKA-AI */}
+        {/* ======================================================== */}
+        {activeTab === 'kaka' && (
+          <KakaAI
+            soundEnabled={soundEnabled}
+            onSelectEntry={(entry) => setSelectedEntry(entry)}
+            onGoToTab={handleGoToTab}
+          />
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 3: STUDIO SUARA / MULTI-FUNGSI TTS */}
+        {/* ======================================================== */}
+        {activeTab === 'tts' && (
+          <AudioSpeechStudio />
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 4: LAB FONOLOGI & ALOFON */}
         {/* ======================================================== */}
         {activeTab === 'fonologi' && (
           <PhonologyLab initialWord={labWord} soundEnabled={soundEnabled} />
         )}
 
         {/* ======================================================== */}
-        {/* TAB 3: AKSARA LONTARA MANDAR */}
+        {/* TAB 5: AKSARA LONTARA MANDAR */}
         {/* ======================================================== */}
         {activeTab === 'lontara' && (
           <LontaraConverter />
         )}
 
         {/* ======================================================== */}
-        {/* TAB 4: BEDAH MORFOLOGI */}
+        {/* TAB 6: BEDAH MORFOLOGI */}
         {/* ======================================================== */}
         {activeTab === 'morfologi' && (
           <MorphologyAnalyzer initialWord={labWord} />
         )}
 
         {/* ======================================================== */}
-        {/* TAB 5: ENSIKLOPEDIA BUDAYA MARITIM */}
+        {/* TAB 7: ENSIKLOPEDIA BUDAYA MARITIM & ILUSTRASI */}
         {/* ======================================================== */}
         {activeTab === 'budaya' && (
           <CultureEncyclopedia soundEnabled={soundEnabled} />
         )}
 
         {/* ======================================================== */}
-        {/* TAB 6: POJOK BELAJAR & KUIS CERDAS */}
+        {/* TAB 8: POJOK BELAJAR & KUIS CERDAS */}
         {/* ======================================================== */}
         {activeTab === 'kuis' && (
           <QuizGame soundEnabled={soundEnabled} />
         )}
 
         {/* ======================================================== */}
-        {/* TAB 7: INOVASI DIGITAL BUDAYAGO 2025 */}
+        {/* TAB 9: ADMIN, SUPPORT WHATSAPP & DONASI DANA 082291544262 */}
+        {/* ======================================================== */}
+        {activeTab === 'admin' && (
+          <AdminCollaboration />
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 10: INOVASI DIGITAL BUDAYAGO 2025 */}
         {/* ======================================================== */}
         {activeTab === 'inovasi' && (
           <BudayaGoInfo />
@@ -536,6 +576,24 @@ export default function Home() {
         soundEnabled={soundEnabled}
         onGoToTab={handleGoToTab}
       />
+
+      {/* Floating Kaka-AI Quick Trigger Button */}
+      {activeTab !== 'kaka' && (
+        <button
+          onClick={() => setActiveTab('kaka')}
+          className="fixed bottom-6 right-6 z-40 p-4 rounded-3xl bg-gradient-to-tr from-mandar-maroon-800 to-mandar-gold-500 text-white shadow-2xl hover:scale-105 transition-all flex items-center space-x-2 border-2 border-white/20 group"
+          title="Buka Asisten Kaka-AI"
+        >
+          <div className="relative">
+            <Bot className="w-6 h-6" />
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping" />
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full" />
+          </div>
+          <span className="font-extrabold text-sm hidden sm:inline-block pr-1">
+            Tanya Kaka-AI
+          </span>
+        </button>
+      )}
 
       {/* Bookmarks Drawer Modal */}
       {isBookmarksOpen && (

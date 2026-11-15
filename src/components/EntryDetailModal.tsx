@@ -13,10 +13,12 @@ import {
   Sparkles, 
   Layers, 
   ArrowRight,
-  Info
+  Info,
+  Globe2,
+  Bot
 } from 'lucide-react';
 import { DictionaryEntry } from './DictionaryCard';
-import { speakMandar } from '@/lib/audio';
+import { speakText, stopSpeaking } from '@/lib/audio';
 import { analyzePhonetics } from '@/lib/phonetics';
 import { dissectMorphology } from '@/lib/morphology';
 
@@ -38,21 +40,31 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
   onGoToTab,
 }) => {
   const [isCopied, setIsCopied] = useState(false);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [playingLang, setPlayingLang] = useState<string | null>(null);
 
   if (!entry) return null;
 
   const phonetics = analyzePhonetics(entry.lemma);
   const morphology = dissectMorphology(entry.lemma);
 
-  const handlePlayAudio = () => {
+  const handlePlayVoice = (text: string, lang: 'mandar' | 'indonesia' | 'english') => {
     if (!soundEnabled) return;
-    setIsPlayingAudio(true);
-    speakMandar(entry.lemma, () => setIsPlayingAudio(false));
+    if (playingLang === lang) {
+      stopSpeaking();
+      setPlayingLang(null);
+      return;
+    }
+
+    setPlayingLang(lang);
+    speakText(text, {
+      lang: lang,
+      onEnd: () => setPlayingLang(null),
+      onError: () => setPlayingLang(null)
+    });
   };
 
   const handleCopy = () => {
-    const text = `${entry.lemma} (${entry.lontara}) [${entry.phonetic}] - ${entry.posLabel}\nArti: ${entry.definition}\nContoh: ${entry.exampleMandar || '-'}\nSumber: Kamus Bahasa Mandar-Indonesia Edisi Revisi 2025, Balai Bahasa Sulsel (Hal. ${entry.page})`;
+    const text = `[MDR] ${entry.lemma} (${entry.lontara}) [${entry.phonetic}] - ${entry.posLabel}\n[IDN] ${entry.definition}\n[ENG] ${entry.definitionEn || '-'}\nContoh Mandar: ${entry.exampleMandar || '-'}\nSumber: Kamus Bahasa Mandar-Indonesia Edisi Revisi 2025, Balai Bahasa Sulsel (Hal. ${entry.page})`;
     navigator.clipboard.writeText(text);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
@@ -61,8 +73,8 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: `${entry.lemma} - Kamus Digital Mandar`,
-        text: `${entry.lemma} (${entry.lontara}): ${entry.definition}`,
+        title: `${entry.lemma} - Kamus Digital Mandar (KADIMA-ID)`,
+        text: `[MDR] ${entry.lemma} (${entry.lontara}): ${entry.definition}`,
         url: window.location.href,
       }).catch(() => {});
     } else {
@@ -108,24 +120,12 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
                 </span>
               </div>
               <p className="text-mandar-sand-200 text-sm mt-1">
-                Aksara Lontara: <span className="font-lontara text-xl text-mandar-gold-300 font-normal">{entry.lontara}</span>
+                Aksara Lontara: <span className="font-lontara text-2xl text-mandar-gold-300 font-normal">{entry.lontara}</span>
               </p>
             </div>
 
             {/* Quick Action Buttons */}
             <div className="flex items-center space-x-2">
-              <button
-                onClick={handlePlayAudio}
-                className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-lg transition-all ${
-                  isPlayingAudio
-                    ? 'bg-mandar-gold-500 text-slate-900 animate-pulse'
-                    : 'bg-white text-mandar-maroon-900 hover:bg-mandar-sand-100'
-                }`}
-              >
-                <Volume2 className="w-4 h-4" />
-                <span>Dengarkan</span>
-              </button>
-
               <button
                 onClick={() => onToggleBookmark(entry)}
                 className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
@@ -149,7 +149,7 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
               <button
                 onClick={handleCopy}
                 className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
-                title="Salin Data Entri"
+                title="Salin Data Entri 3 Bahasa"
               >
                 {isCopied ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
               </button>
@@ -160,24 +160,76 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
         {/* Modal Body */}
         <div className="p-6 sm:p-8 space-y-6 max-h-[65vh] overflow-y-auto">
           
-          {/* Main Definition Box */}
+          {/* TRILINGUAL CARD 1: BAHASA INDONESIA */}
           <div className="bg-mandar-sand-50 dark:bg-slate-800/40 p-5 rounded-2xl border border-mandar-sand-200 dark:border-slate-800">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-mandar-maroon-800 dark:text-mandar-maroon-300 mb-2 flex items-center space-x-1.5">
-              <BookMarked className="w-4 h-4" />
-              <span>Definisi & Arti Kata (Bahasa Indonesia)</span>
-            </h4>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-mandar-maroon-800 dark:text-mandar-maroon-300 flex items-center space-x-1.5">
+                <BookMarked className="w-4 h-4" />
+                <span>[IDN] Definisi Bahasa Indonesia</span>
+              </h4>
+              <button
+                onClick={() => handlePlayVoice(entry.definition, 'indonesia')}
+                className={`flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  playingLang === 'indonesia'
+                    ? 'bg-amber-600 text-white animate-pulse'
+                    : 'bg-white dark:bg-slate-700 text-stone-700 dark:text-slate-200 hover:bg-stone-100'
+                }`}
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>Lafalkan Indonesia</span>
+              </button>
+            </div>
             <p className="text-base sm:text-lg text-stone-800 dark:text-slate-100 leading-relaxed font-serif">
               {entry.definition}
             </p>
           </div>
 
-          {/* Example Usage Sentences */}
+          {/* TRILINGUAL CARD 2: ENGLISH (BAHASA INGGRIS) */}
+          <div className="bg-sky-50/50 dark:bg-sky-950/20 p-5 rounded-2xl border border-sky-200/80 dark:border-sky-800/60">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-sky-800 dark:text-sky-300 flex items-center space-x-1.5">
+                <Globe2 className="w-4 h-4" />
+                <span>[ENG] English Meaning & Gloss</span>
+              </h4>
+              {entry.definitionEn && (
+                <button
+                  onClick={() => handlePlayVoice(entry.definitionEn!, 'english')}
+                  className={`flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    playingLang === 'english'
+                      ? 'bg-sky-600 text-white animate-pulse'
+                      : 'bg-white dark:bg-slate-700 text-stone-700 dark:text-slate-200 hover:bg-stone-100'
+                  }`}
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>Speak English</span>
+                </button>
+              )}
+            </div>
+            <p className="text-sm sm:text-base text-stone-800 dark:text-slate-200 leading-relaxed italic">
+              {entry.definitionEn || 'English translation available in next release.'}
+            </p>
+          </div>
+
+          {/* TRILINGUAL CARD 3: CONTEXTUAL EXAMPLE SENTENCE IN MANDAR */}
           {entry.exampleMandar && (
             <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-mandar-sand-200 dark:border-slate-700 shadow-sm">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-mandar-navy-700 dark:text-sky-300 mb-3 flex items-center space-x-1.5">
-                <Info className="w-4 h-4" />
-                <span>Konteks Kalimat Contoh Penggunaan</span>
-              </h4>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-mandar-navy-700 dark:text-sky-300 flex items-center space-x-1.5">
+                  <Info className="w-4 h-4" />
+                  <span>[MDR] Kalimat Contoh Tuturan Asli</span>
+                </h4>
+                <button
+                  onClick={() => handlePlayVoice(entry.exampleMandar!, 'mandar')}
+                  className={`flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    playingLang === 'mandar'
+                      ? 'bg-mandar-maroon-700 text-white animate-pulse'
+                      : 'bg-mandar-sand-100 text-mandar-maroon-900 dark:bg-slate-700 dark:text-mandar-maroon-300 hover:bg-mandar-sand-200'
+                  }`}
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>Lafalkan Kalimat Mandar</span>
+                </button>
+              </div>
               <div className="p-4 rounded-xl bg-mandar-sand-50 dark:bg-slate-900 border-l-4 border-mandar-maroon-600 dark:border-mandar-maroon-500">
                 <p className="text-base text-mandar-maroon-900 dark:text-mandar-maroon-200 font-medium italic mb-2">
                   &ldquo;{entry.exampleMandar}&rdquo;
@@ -279,6 +331,26 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Quick AI Consultant Link */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-mandar-maroon-50 to-mandar-gold-50 dark:from-slate-800 dark:to-slate-850 border border-mandar-gold-300/60 dark:border-slate-700 flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <Bot className="w-5 h-5 text-mandar-maroon-700 dark:text-mandar-gold-400" />
+              <span className="text-xs font-bold text-stone-800 dark:text-white">
+                Ingin tahu lebih dalam tentang kata ini?
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                onClose();
+                onGoToTab('kaka', `Tolong jelaskan secara mendalam tentang kata Mandar '${entry.lemma}'`);
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-mandar-maroon-700 text-white font-bold text-xs shadow-sm hover:bg-mandar-maroon-800 flex items-center space-x-1"
+            >
+              <span>Tanya Kaka-AI</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           {/* Source Attribution Box */}

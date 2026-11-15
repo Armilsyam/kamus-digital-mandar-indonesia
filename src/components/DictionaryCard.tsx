@@ -1,8 +1,18 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Volume2, Bookmark, BookmarkCheck, Copy, Check, ExternalLink, Sparkles } from 'lucide-react';
-import { speakMandar } from '@/lib/audio';
+import { 
+  Volume2, 
+  Bookmark, 
+  BookmarkCheck, 
+  Copy, 
+  Check, 
+  ExternalLink, 
+  Sparkles,
+  Globe2,
+  Languages
+} from 'lucide-react';
+import { speakText } from '@/lib/audio';
 
 export interface DictionaryEntry {
   id: string;
@@ -10,8 +20,11 @@ export interface DictionaryEntry {
   cleanLemma: string;
   pos: string;
   posLabel: string;
+  posEn?: string;
   definition: string;
+  definitionEn?: string;
   exampleMandar: string | null;
+  exampleEn?: string | null;
   phonetic: string;
   lontara: string;
   category: string;
@@ -49,7 +62,8 @@ export const DictionaryCard: React.FC<DictionaryCardProps> = ({
   onFilterRoot,
   soundEnabled,
 }) => {
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [isPlayingMandar, setIsPlayingMandar] = useState(false);
+  const [isPlayingIndo, setIsPlayingIndo] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
   const posStyle = POS_COLORS[entry.pos] || {
@@ -58,16 +72,33 @@ export const DictionaryCard: React.FC<DictionaryCardProps> = ({
     border: 'border-stone-200 dark:border-stone-700'
   };
 
-  const handlePlayAudio = (e: React.MouseEvent) => {
+  const handlePlayMandar = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!soundEnabled) return;
-    setIsPlayingAudio(true);
-    speakMandar(entry.lemma, () => setIsPlayingAudio(false));
+    setIsPlayingMandar(true);
+    // Lafalkan lema dan jika ada kalimat contoh, lafalkan kalimat panjangnya!
+    const textToSpeak = entry.exampleMandar ? `${entry.lemma}. ${entry.exampleMandar}` : entry.lemma;
+    speakText(textToSpeak, { 
+      lang: 'mandar', 
+      onEnd: () => setIsPlayingMandar(false),
+      onError: () => setIsPlayingMandar(false)
+    });
+  };
+
+  const handlePlayIndonesian = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!soundEnabled) return;
+    setIsPlayingIndo(true);
+    speakText(entry.definition, { 
+      lang: 'indonesia', 
+      onEnd: () => setIsPlayingIndo(false),
+      onError: () => setIsPlayingIndo(false)
+    });
   };
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const textToCopy = `${entry.lemma} (${entry.lontara}) [${entry.phonetic}] - ${entry.posLabel}: ${entry.definition}`;
+    const textToCopy = `[MDR] ${entry.lemma} (${entry.lontara}) [${entry.phonetic}]\n[IDN] ${entry.posLabel}: ${entry.definition}\n[ENG] ${entry.posEn || entry.pos}: ${entry.definitionEn || '-'}`;
     navigator.clipboard.writeText(textToCopy);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
@@ -116,16 +147,19 @@ export const DictionaryCard: React.FC<DictionaryCardProps> = ({
             <button
               onClick={handleCopy}
               className="p-1.5 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 rounded-lg hover:bg-stone-50 dark:hover:bg-slate-800 transition-colors"
-              title="Salin Entri"
+              title="Salin Entri 3 Bahasa"
             >
               {isCopied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
             </button>
           </div>
         </div>
 
-        {/* Lemma, Lontara & Pronunciation */}
+        {/* 1. BAHASA MANDAR (Lemma, Lontara & Fonetik) */}
         <div className="flex items-baseline justify-between mb-2">
           <div className="flex items-baseline space-x-2.5">
+            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-mandar-maroon-100 text-mandar-maroon-800 dark:bg-mandar-maroon-950 dark:text-mandar-maroon-300 font-mono">
+              MDR
+            </span>
             <h3 className="text-xl font-bold tracking-tight text-mandar-maroon-900 dark:text-mandar-maroon-200 group-hover:text-mandar-maroon-700 dark:group-hover:text-mandar-maroon-300 transition-colors">
               {entry.lemma}
             </h3>
@@ -140,22 +174,43 @@ export const DictionaryCard: React.FC<DictionaryCardProps> = ({
           </span>
         </div>
 
-        {/* Indonesian Definition */}
-        <p className="text-sm text-stone-700 dark:text-slate-300 line-clamp-3 mb-3 leading-relaxed">
-          {entry.definition}
-        </p>
+        {/* 2. BAHASA INDONESIA (Definisi Lengkap) */}
+        <div className="mb-2.5">
+          <div className="flex items-start space-x-2">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-mono shrink-0 mt-0.5">
+              IDN
+            </span>
+            <p className="text-sm text-stone-700 dark:text-slate-300 line-clamp-2 leading-relaxed">
+              {entry.definition}
+            </p>
+          </div>
+        </div>
+
+        {/* 3. ENGLISH (Trilingual Gloss / Meaning) */}
+        {entry.definitionEn && (
+          <div className="mb-3">
+            <div className="flex items-start space-x-2">
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 font-mono shrink-0 mt-0.5">
+                ENG
+              </span>
+              <p className="text-xs text-stone-500 dark:text-slate-400 italic line-clamp-2 leading-relaxed">
+                {entry.definitionEn}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Example Sentence Preview */}
         {entry.exampleMandar && (
           <div className="bg-mandar-sand-50 dark:bg-slate-800/50 rounded-xl p-3 border border-mandar-sand-200/60 dark:border-slate-800 text-xs space-y-1 mb-3">
-            <div className="font-medium text-mandar-maroon-800 dark:text-mandar-maroon-300 italic">
-              &ldquo;{entry.exampleMandar}&rdquo;
+            <div className="font-medium text-mandar-maroon-800 dark:text-mandar-maroon-300 italic flex items-center justify-between">
+              <span>&ldquo;{entry.exampleMandar}&rdquo;</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Card Footer: Root Word, Page Reference & Audio Button */}
+      {/* Card Footer: Root Word, Page Reference & Multi-Functional Voice Buttons */}
       <div className="pt-3 border-t border-mandar-sand-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-stone-500 dark:text-slate-400">
         <div className="flex items-center space-x-2">
           {entry.rootWord && entry.rootWord !== entry.cleanLemma && (
@@ -173,18 +228,32 @@ export const DictionaryCard: React.FC<DictionaryCardProps> = ({
           <span className="text-[10px] text-stone-400">Hal. {entry.page}</span>
         </div>
 
-        <div className="flex items-center space-x-2">
+        {/* Audio Action Buttons: Mandar & Indonesia */}
+        <div className="flex items-center space-x-1.5">
           <button
-            onClick={handlePlayAudio}
-            className={`flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-              isPlayingAudio
-                ? 'bg-mandar-maroon-600 text-white animate-pulse'
+            onClick={handlePlayMandar}
+            className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
+              isPlayingMandar
+                ? 'bg-mandar-maroon-700 text-white animate-pulse'
                 : 'bg-mandar-sand-100 text-mandar-maroon-900 hover:bg-mandar-sand-200 dark:bg-slate-800 dark:text-mandar-maroon-300'
             }`}
-            title="Dengarkan Pengucapan Asli"
+            title="Lafalkan Suara Mandar (Kalimat Penuh)"
           >
             <Volume2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Suara</span>
+            <span className="text-[10px]">Mdr</span>
+          </button>
+
+          <button
+            onClick={handlePlayIndonesian}
+            className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
+              isPlayingIndo
+                ? 'bg-amber-600 text-white animate-pulse'
+                : 'bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-slate-800 dark:text-stone-300'
+            }`}
+            title="Lafalkan Suara Bahasa Indonesia"
+          >
+            <Volume2 className="w-3.5 h-3.5" />
+            <span className="text-[10px]">Idn</span>
           </button>
 
           <span className="text-stone-300 dark:text-slate-600">|</span>

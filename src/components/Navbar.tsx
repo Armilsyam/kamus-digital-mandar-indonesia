@@ -16,7 +16,10 @@ import {
   VolumeX, 
   Menu, 
   X,
-  Search
+  Search,
+  Bot,
+  ShieldCheck,
+  Languages
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -67,13 +70,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const navItems = [
-    { id: 'kamus', label: 'Kamus Leksikon', icon: BookOpen },
-    { id: 'fonologi', label: 'Lab Fonologi & Alofon', icon: Sparkles },
+    { id: 'kamus', label: 'Kamus (3 Bahasa)', icon: BookOpen },
+    { id: 'kaka', label: 'Kaka-AI', icon: Bot, highlight: true },
+    { id: 'tts', label: 'Studio Suara', icon: Volume2 },
+    { id: 'fonologi', label: 'Lab Fonologi', icon: Sparkles },
     { id: 'lontara', label: 'Aksara Lontara', icon: Scroll },
-    { id: 'morfologi', label: 'Bedah Morfologi', icon: Binary },
-    { id: 'budaya', label: 'Ensiklopedia Maritim', icon: Compass },
-    { id: 'kuis', label: 'Pojok Belajar & Kuis', icon: Gamepad2 },
-    { id: 'inovasi', label: 'BudayaGo 2025', icon: Award },
+    { id: 'morfologi', label: 'Morfologi', icon: Binary },
+    { id: 'budaya', label: 'Budaya Maritim', icon: Compass },
+    { id: 'kuis', label: 'Kuis & Belajar', icon: Gamepad2 },
+    { id: 'admin', label: 'Admin & Dukungan', icon: ShieldCheck, badge: 'DANA/WA' },
+    { id: 'inovasi', label: 'BudayaGo', icon: Award },
   ];
 
   return (
@@ -94,8 +100,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-mandar-maroon-800 via-mandar-maroon-700 to-mandar-gold-600 dark:from-mandar-maroon-300 dark:to-mandar-gold-400 bg-clip-text text-transparent">
                   KADIMA<span className="text-mandar-navy-600 dark:text-sky-400 font-semibold">.ID</span>
                 </span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-mandar-gold-100 text-mandar-gold-800 dark:bg-mandar-gold-950/80 dark:text-mandar-gold-300 border border-mandar-gold-300 dark:border-mandar-gold-700">
-                  Kemendikdasmen 2025
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-mandar-gold-100 text-mandar-gold-800 dark:bg-mandar-gold-950/80 dark:text-mandar-gold-300 border border-mandar-gold-300 dark:border-mandar-gold-700 hidden sm:inline-block">
+                  Mandar • Indonesia • English
                 </span>
               </div>
               <p className="text-xs text-mandar-maroon-900/70 dark:text-slate-400 hidden sm:block">
@@ -105,7 +111,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center space-x-1">
+          <nav className="hidden xl:flex items-center space-x-1">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -113,14 +119,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  className={`relative flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     isActive
                       ? 'bg-mandar-maroon-700 text-white shadow-md shadow-mandar-maroon-800/25 dark:bg-mandar-maroon-600'
+                      : item.highlight
+                      ? 'bg-mandar-gold-50 dark:bg-mandar-gold-950/50 text-mandar-maroon-900 dark:text-mandar-gold-300 hover:bg-mandar-gold-100'
                       : 'text-stone-700 dark:text-slate-300 hover:bg-mandar-maroon-50 dark:hover:bg-slate-800/60 hover:text-mandar-maroon-800 dark:hover:text-white'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-mandar-gold-300' : 'text-stone-400 dark:text-slate-400'}`} />
+                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-mandar-gold-300' : 'text-stone-400 dark:text-slate-400'}`} />
                   <span>{item.label}</span>
+                  {item.badge && !isActive && (
+                    <span className="text-[9px] px-1 py-0.2 rounded bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 font-bold ml-0.5">
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -180,7 +193,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Mobile Menu Hamburger */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden p-2 text-stone-600 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-slate-800 rounded-lg"
+              className="xl:hidden p-2 text-stone-600 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-slate-800 rounded-lg"
             >
               {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -189,7 +202,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Mobile Dropdown Menu */}
         {isMobileMenuOpen && (
-          <div className="lg:hidden py-4 border-t border-mandar-sand-200 dark:border-slate-800 space-y-1">
+          <div className="xl:hidden py-4 border-t border-mandar-sand-200 dark:border-slate-800 grid grid-cols-2 gap-1.5">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -200,14 +213,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setActiveTab(item.id);
                     setIsMobileMenuOpen(false);
                   }}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-base font-medium transition-all ${
+                  className={`flex items-center space-x-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                     isActive
                       ? 'bg-mandar-maroon-700 text-white dark:bg-mandar-maroon-600'
                       : 'text-stone-700 dark:text-slate-300 hover:bg-mandar-maroon-50 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-mandar-gold-300' : 'text-stone-400'}`} />
-                  <span>{item.label}</span>
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-mandar-gold-300' : 'text-stone-400'}`} />
+                  <span className="truncate">{item.label}</span>
                 </button>
               );
             })}

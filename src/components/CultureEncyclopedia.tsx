@@ -11,18 +11,20 @@ import {
   Feather,
   Flame,
   Award,
-  ChevronRight
+  ChevronRight,
+  Palette
 } from 'lucide-react';
 import cultureData from '@/data/mandar_culture.json';
 import { splitMandarSyllables } from '@/lib/phonetics';
-import { speakMandar } from '@/lib/audio';
+import { speakMandar, speakText } from '@/lib/audio';
+import { CulturalIllustrations } from './CulturalIllustrations';
 
 interface CultureEncyclopediaProps {
   soundEnabled: boolean;
 }
 
 export const CultureEncyclopedia: React.FC<CultureEncyclopediaProps> = ({ soundEnabled }) => {
-  const [activeSection, setActiveSection] = useState<'sandeq' | 'saqbe' | 'kalindaqdaq' | 'sayyang' | 'culinary'>('sandeq');
+  const [activeSection, setActiveSection] = useState<'visual' | 'sandeq' | 'saqbe' | 'kalindaqdaq' | 'sayyang' | 'culinary'>('visual');
 
   // Kalindaqdaq meter checker state
   const [line1, setLine1] = useState('Mellongeq mepasorongan');
@@ -55,7 +57,7 @@ export const CultureEncyclopedia: React.FC<CultureEncyclopediaProps> = ({ soundE
           <p className="text-mandar-sand-200 text-sm sm:text-base leading-relaxed">
             Menghubungkan istilah leksikografis dengan realitas kebudayaan adiluhung suku Mandar: 
             ketangguhan perahu layar Sandeq, keagungan tenun sutra Lipaq Saqbe, kearifan puisi lisan Kalindaqdaq, 
-            ritual Sayyang Pattudu, hingga warisan kuliner pesisir Teluk Mandar.
+            ritual Sayyang Pattudu, hingga warisan kuliner pesisir Teluk Mandar. Lengkap dengan diagram ilustrasi interaktif!
           </p>
         </div>
       </div>
@@ -63,7 +65,8 @@ export const CultureEncyclopedia: React.FC<CultureEncyclopediaProps> = ({ soundE
       {/* Navigation Pills */}
       <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-mandar-sand-100 dark:bg-slate-800/80 border border-mandar-sand-200 dark:border-slate-700">
         {[
-          { id: 'sandeq', label: '⛵ Perahu Layar Sandeq', title: 'Mahakarya Maritim' },
+          { id: 'visual', label: '🎨 Diagram Vektor & Ilustrasi Visual', title: 'Anatomi Visual' },
+          { id: 'sandeq', label: '⛵ Glosarium Perahu Sandeq', title: 'Mahakarya Maritim' },
           { id: 'saqbe', label: '🧶 Tenun Lipaq Saqbe', title: 'Sutra Tradisional' },
           { id: 'kalindaqdaq', label: '📜 Sastra Kalindaqdaq', title: 'Puisi 8-7-8-7' },
           { id: 'sayyang', label: '🐴 Sayyang Pattudu', title: 'Kuda Menari' },
@@ -83,7 +86,12 @@ export const CultureEncyclopedia: React.FC<CultureEncyclopediaProps> = ({ soundE
         ))}
       </div>
 
-      {/* SECTION 1: PERAHU SANDEQ */}
+      {/* SECTION 0: VISUAL SCHEMATIC & ILLUSTRATIONS */}
+      {activeSection === 'visual' && (
+        <CulturalIllustrations soundEnabled={soundEnabled} />
+      )}
+
+      {/* SECTION 1: PERAHU SANDEQ GLOSSARY */}
       {activeSection === 'sandeq' && (
         <div className="space-y-6">
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-mandar-sand-200 dark:border-slate-800 shadow-md">
