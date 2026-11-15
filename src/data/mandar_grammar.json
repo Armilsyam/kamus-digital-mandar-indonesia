@@ -1,0 +1,537 @@
+{
+  "phonology": {
+    "totalPhonemes": 24,
+    "vowels": [
+      {
+        "char": "a",
+        "ipa": "[a]",
+        "name": "Vokal Depan Terbuka",
+        "example": "api (api), anaq (anak)"
+      },
+      {
+        "char": "i",
+        "ipa": "[i]",
+        "name": "Vokal Depan Tertutup",
+        "example": "ina (ibu), iqdai (tidak)"
+      },
+      {
+        "char": "u",
+        "ipa": "[u]",
+        "name": "Vokal Belakang Tertutup",
+        "example": "uma (kebun), urang (hujan)"
+      },
+      {
+        "char": "e",
+        "ipa": "[e]",
+        "name": "Vokal Depan Sedang",
+        "example": "eloq (mau), epeq (sayap)"
+      },
+      {
+        "char": "o",
+        "ipa": "[o]",
+        "name": "Vokal Belakang Sedang",
+        "example": "olo (arah), oto (mobil)"
+      }
+    ],
+    "consonants": [
+      {
+        "char": "p",
+        "ipa": "[p]",
+        "type": "Konsonan Hambat Bilabial Tak Bersuara",
+        "example": "pau (kata)"
+      },
+      {
+        "char": "b",
+        "ipa": "[b] / [w]",
+        "type": "Konsonan Hambat Bilabial Bersuara",
+        "example": "boyang (rumah), tabe [tawe] (permisi)"
+      },
+      {
+        "char": "t",
+        "ipa": "[t]",
+        "type": "Konsonan Hambat Alveolar Tak Bersuara",
+        "example": "tunu (bakar)"
+      },
+      {
+        "char": "d",
+        "ipa": "[d] / [ð]",
+        "type": "Konsonan Hambat Alveolar Bersuara",
+        "example": "dundu (minum), tada [tadza] (tombak)"
+      },
+      {
+        "char": "c",
+        "ipa": "[c]",
+        "type": "Konsonan Hambat Palatal Tak Bersuara",
+        "example": "cawa (tertawa)"
+      },
+      {
+        "char": "j",
+        "ipa": "[ɟ] / [j]",
+        "type": "Konsonan Hambat Palatal Bersuara",
+        "example": "jama (kerja), kaja [kaya] (berlebihan)"
+      },
+      {
+        "char": "k",
+        "ipa": "[k]",
+        "type": "Konsonan Hambat Velar Tak Bersuara",
+        "example": "kande (makan)"
+      },
+      {
+        "char": "g",
+        "ipa": "[g] / [ɣ]",
+        "type": "Konsonan Hambat Velar Bersuara",
+        "example": "giling (giling), pago [pagho] (gayung tempurung)"
+      },
+      {
+        "char": "q",
+        "ipa": "[ʔ]",
+        "type": "Konsonan Hambat Glotal (Hamzah)",
+        "example": "anaq (anak), saqbe (sutra), teqneq (manis)"
+      },
+      {
+        "char": "m",
+        "ipa": "[m]",
+        "type": "Konsonan Nasal Bilabial",
+        "example": "mata (mata)"
+      },
+      {
+        "char": "n",
+        "ipa": "[n]",
+        "type": "Konsonan Nasal Alveolar",
+        "example": "naung (turun)"
+      },
+      {
+        "char": "ny",
+        "ipa": "[ɲ]",
+        "type": "Konsonan Nasal Palatal",
+        "example": "nyawa (jiwa)"
+      },
+      {
+        "char": "ng",
+        "ipa": "[ŋ]",
+        "type": "Konsonan Nasal Velar",
+        "example": "ngiang (dengung)"
+      },
+      {
+        "char": "s",
+        "ipa": "[s]",
+        "type": "Konsonan Frikatif Alveolar Tak Bersuara",
+        "example": "sombal (layar)"
+      },
+      {
+        "char": "r",
+        "ipa": "[r]",
+        "type": "Konsonan Getar Alveolar",
+        "example": "rarung (jarum)"
+      },
+      {
+        "char": "l",
+        "ipa": "[l]",
+        "type": "Konsonan Lateral Alveolar",
+        "example": "litaq (tanah)"
+      },
+      {
+        "char": "w",
+        "ipa": "[w]",
+        "type": "Konsonan Semi-Vokal Labial-Velar",
+        "example": "wai (air)"
+      },
+      {
+        "char": "y",
+        "ipa": "[j]",
+        "type": "Konsonan Semi-Vokal Palatal",
+        "example": "yau (saya)"
+      },
+      {
+        "char": "h",
+        "ipa": "[h]",
+        "type": "Konsonan Frikatif Glotal",
+        "example": "haraq (harap)"
+      }
+    ],
+    "allophones": [
+      {
+        "phoneme": "/b/",
+        "realization": "[w] atau [β]",
+        "environment": "Bila berada di antara dua vokal (intervokalik)",
+        "ruleFormula": "/b/ → [w] / V _ V",
+        "examples": [
+          {
+            "base": "tabe",
+            "phonemic": "/tabe/",
+            "phonetic": "[tawe]",
+            "meaning": "permisi / maaf"
+          },
+          {
+            "base": "kaboro",
+            "phonemic": "/kaboro/",
+            "phonetic": "[kaworo]",
+            "meaning": "sayang / cinta"
+          },
+          {
+            "base": "lebaq",
+            "phonemic": "/lebaq/",
+            "phonetic": "[lewaʔ]",
+            "meaning": "selesai / sudah"
+          }
+        ]
+      },
+      {
+        "phoneme": "/d/",
+        "realization": "[dz] atau [ð] (seperti huruf Arab ذ / zal)",
+        "environment": "Bila berada di antara dua vokal (intervokalik)",
+        "ruleFormula": "/d/ → [ð] / V _ V",
+        "examples": [
+          {
+            "base": "tada",
+            "phonemic": "/tada/",
+            "phonetic": "[taða] / [tadza]",
+            "meaning": "tombak"
+          },
+          {
+            "base": "madondong",
+            "phonemic": "/madondong/",
+            "phonetic": "[maðondzoŋ]",
+            "meaning": "besok / pagi hari"
+          },
+          {
+            "base": "pada",
+            "phonemic": "/pada/",
+            "phonetic": "[paða]",
+            "meaning": "sama / serupa"
+          }
+        ]
+      },
+      {
+        "phoneme": "/g/",
+        "realization": "[gh] atau [ɣ] (seperti huruf Arab غ / ghain)",
+        "environment": "Bila berada di antara dua vokal (intervokalik)",
+        "ruleFormula": "/g/ → [ɣ] / V _ V",
+        "examples": [
+          {
+            "base": "pago",
+            "phonemic": "/pago/",
+            "phonetic": "[paɣo]",
+            "meaning": "gayung dr tempurung kelapa"
+          },
+          {
+            "base": "tagala",
+            "phonemic": "/tagala/",
+            "phonetic": "[taɣala]",
+            "meaning": "pegang / rangkul"
+          },
+          {
+            "base": "bagoq",
+            "phonemic": "/bagoq/",
+            "phonetic": "[baɣoʔ]",
+            "meaning": "pukul"
+          }
+        ]
+      },
+      {
+        "phoneme": "/j/",
+        "realization": "[y] atau [j] (semi-vokal palatal)",
+        "environment": "Bila berada di antara dua vokal (intervokalik)",
+        "ruleFormula": "/j/ → [j] / V _ V",
+        "examples": [
+          {
+            "base": "pajama",
+            "phonemic": "/pajama/",
+            "phonetic": "[payama]",
+            "meaning": "pekerjaan"
+          },
+          {
+            "base": "kaja",
+            "phonemic": "/kaja/",
+            "phonetic": "[kaya]",
+            "meaning": "berlebihan"
+          }
+        ]
+      }
+    ],
+    "morphophonemics": [
+      {
+        "prefix": "mang-",
+        "rootInitial": "p",
+        "resultCluster": "pp",
+        "example": "mang- + pau = mappau (berkata/berbicara)"
+      },
+      {
+        "prefix": "mang-",
+        "rootInitial": "t",
+        "resultCluster": "tt",
+        "example": "mang- + tunu = mattunu (membakar)"
+      },
+      {
+        "prefix": "mang-",
+        "rootInitial": "c",
+        "resultCluster": "cc",
+        "example": "mang- + cawa = maccawa (tertawa)"
+      },
+      {
+        "prefix": "mang-",
+        "rootInitial": "k",
+        "resultCluster": "kk",
+        "example": "mang- + kande = makkande (makan)"
+      },
+      {
+        "prefix": "mang-",
+        "rootInitial": "s",
+        "resultCluster": "ss",
+        "example": "mang- + sambayang = massambayang (sembahyang)"
+      },
+      {
+        "prefix": "mang-",
+        "rootInitial": "b",
+        "resultCluster": "mb",
+        "example": "mang- + boyang = mamboyang (berumah tangga)"
+      },
+      {
+        "prefix": "mang-",
+        "rootInitial": "d",
+        "resultCluster": "nd",
+        "example": "mang- + dundu = mandundu (meminum)"
+      },
+      {
+        "prefix": "mang-",
+        "rootInitial": "j",
+        "resultCluster": "nj",
+        "example": "mang- + jama = manjama (bekerja)"
+      },
+      {
+        "prefix": "mang-",
+        "rootInitial": "g",
+        "resultCluster": "ngg",
+        "example": "mang- + giling = manggiling (menggiling)"
+      },
+      {
+        "prefix": "mang-",
+        "rootInitial": "l",
+        "resultCluster": "ll",
+        "example": "mang- + loppa = malloppa (melompat)"
+      },
+      {
+        "prefix": "mang-",
+        "rootInitial": "r",
+        "resultCluster": "rr",
+        "example": "mang- + rammang = marrammang (berteduh)"
+      },
+      {
+        "prefix": "mang-",
+        "rootInitial": "w",
+        "resultCluster": "ww",
+        "example": "mang- + wawa = mawwawa (membawa)"
+      },
+      {
+        "prefix": "mang-",
+        "rootInitial": "y",
+        "resultCluster": "yy",
+        "example": "mang- + yau = mayyau (mengaku saya)"
+      }
+    ],
+    "stressPatterns": [
+      {
+        "type": "Ekasuku (Monosyllabic)",
+        "rule": "Tekanan jatuh pada satu-satunya suku kata",
+        "example": "di (di), mi (sudah), ba (bawa)"
+      },
+      {
+        "type": "Dwisuku (Disyllabic)",
+        "rule": "Tekanan jatuh pada suku kata pertama (penultima)",
+        "example": "’boyang (rumah), ’kande (makan), ’litaq (tanah)"
+      },
+      {
+        "type": "Trisuku (Trisyllabic)",
+        "rule": "Tekanan jatuh pada suku kata kedua (penultima dari akhir)",
+        "example": "ka’lamang (kelapa), ma’niri (bersih), ba’lana (belanga)"
+      },
+      {
+        "type": "Catursuku (Quadrisyllabic)",
+        "rule": "Tekanan sekunder pada suku kata pertama, tekanan primer pada suku kata ketiga",
+        "example": "’pasi’tengang (persamaan), ’kaqa’la-ala (panjang tangan)"
+      }
+    ]
+  },
+  "pronouns": [
+    {
+      "person": "Orang Pertama Tunggal (Saya)",
+      "seri1": "iyau",
+      "seri1Usage": "Bentuk bebas / Fokus subjek",
+      "seri2": "-u / u-",
+      "seri2Usage": "Pelaku transitif / Genitif kepunyaan",
+      "seri3": "-aq / -maq",
+      "seri3Usage": "Objek penderita / Enklitik pasif",
+      "example": "Iyau mappau (Saya berbicara) | Boyangu (Rumahku) | Naperoaq (Dia mengajak saya)"
+    },
+    {
+      "person": "Orang Pertama Jamak Eksklusif (Kami)",
+      "seri1": "iyamiq",
+      "seri1Usage": "Bentuk bebas",
+      "seri2": "-mang / ki-",
+      "seri2Usage": "Pelaku transitif",
+      "seri3": "-kamiq",
+      "seri3Usage": "Objek / Enklitik",
+      "example": "Iyamiq mamba (Kami pergi) | Boyangmang (Rumah kami)"
+    },
+    {
+      "person": "Orang Pertama Jamak Inklusif (Kita)",
+      "seri1": "itaq",
+      "seri1Usage": "Bentuk bebas (sopan)",
+      "seri2": "-ta / ta-",
+      "seri2Usage": "Pelaku transitif",
+      "seri3": "-kitaq",
+      "seri3Usage": "Objek / Enklitik",
+      "example": "Itaq maqallio (Kita yang beli) | Boyangta (Rumah kita)"
+    },
+    {
+      "person": "Orang Kedua Tunggal (Engkau/Kamu)",
+      "seri1": "iqo",
+      "seri1Usage": "Bentuk bebas",
+      "seri2": "-mu / mu-",
+      "seri2Usage": "Pelaku transitif / Pemilik",
+      "seri3": "-o / moqo",
+      "seri3Usage": "Objek / Enklitik",
+      "example": "Iqo madondong pole (Kamu besok datang) | Boyangmu (Rumahmu) | Kupatudoqo (Kusuruh engkau)"
+    },
+    {
+      "person": "Orang Ketiga Tunggal/Jamak (Dia/Mereka)",
+      "seri1": "iya / iseqiya",
+      "seri1Usage": "Bentuk bebas",
+      "seri2": "-na / na-",
+      "seri2Usage": "Pelaku transitif / Pemilik",
+      "seri3": "-i / -di",
+      "seri3Usage": "Objek / Enklitik",
+      "example": "Iya namande (Dia makan) | Boyangna (Rumahnya) | Diandedi (Dimakan olehnya)"
+    }
+  ],
+  "affixes": {
+    "prefixes": [
+      {
+        "affix": "ma- / maq-",
+        "function": "Membentuk kata kerja aktif transitif/intransitif atau kata sifat",
+        "example": "maande (makan), maaccur (meremukkan)"
+      },
+      {
+        "affix": "me- / meq-",
+        "function": "Menyatakan perbuatan berulang, menuju ke arah, atau merintih",
+        "example": "meqakke (berangkat), meadede (merintih aduh)"
+      },
+      {
+        "affix": "pa- / paq-",
+        "function": "Menyatakan pelaku, alat, atau kausatif",
+        "example": "paagama (santri/orang alim), passorong (uang mahar)"
+      },
+      {
+        "affix": "pe- / peq-",
+        "function": "Menyatakan tindakan pencarian atau penjemputan",
+        "example": "peala (penjemput), peakal (curang)"
+      },
+      {
+        "affix": "na-",
+        "function": "Awalan persona ketiga pasif (di-) atau kata tugas",
+        "example": "nawajiqi (diwajibkan olehnya), naala (diambilnya)"
+      },
+      {
+        "affix": "di-",
+        "function": "Bentuk pasif umum dalam bahasa Mandar",
+        "example": "didundu (diminum), diande (dimakan)"
+      },
+      {
+        "affix": "ti-",
+        "function": "Menyatakan ketidaksengajaan (ter- dalam BI)",
+        "example": "titedo (tersandung), tibangngang (terheran-heran)"
+      },
+      {
+        "affix": "si-",
+        "function": "Menyatakan saling (resiprokal / ber-an)",
+        "example": "sitimbe (saling lempar), sibatta (saling parang)"
+      },
+      {
+        "affix": "ka-",
+        "function": "Menyatakan sifat gemar melakukan sesuatu (kata ulang)",
+        "example": "kaala-ala (panjang tangan), kapau-pau (panjang mulut)"
+      },
+      {
+        "affix": "ke-",
+        "function": "Menyatakan mempunyai / berpemilikan",
+        "example": "kebara-barang (mempunyai banyak barang), keanaq (mempunyai anak)"
+      },
+      {
+        "affix": "um-",
+        "function": "Menyatakan dalam keadaan atau perbuatan aktif",
+        "example": "ummorong (berenang), ummewa (melawan)"
+      }
+    ],
+    "infixes": [
+      {
+        "affix": "-um-",
+        "function": "Melakukan pekerjaan seperti kata dasar",
+        "example": "tumekeq (memanjat), tumadu (makan sirih)"
+      },
+      {
+        "affix": "-al-",
+        "function": "Membentuk intensitas atau variasi gerak",
+        "example": "calalaq (bercahaya)"
+      },
+      {
+        "affix": "-ar-",
+        "function": "Menyatakan jamak atau pengulangan",
+        "example": "tarawa (tertawa riuh)"
+      }
+    ],
+    "suffixes": [
+      {
+        "affix": "-ang",
+        "function": "Membentuk nomina proses, tempat, atau benefaktif (kan)",
+        "example": "alang (ambilkan), accurang (berhancuran)"
+      },
+      {
+        "affix": "-i",
+        "function": "Membentuk lokatif atau kausatif pengulangan",
+        "example": "utui (carikan kutunya), alai (ambillah)"
+      }
+    ],
+    "clitics": [
+      {
+        "clitic": "-mi / -mo",
+        "meaning": "Penanda aspek perfek (sudah / lah)",
+        "example": "uissangmi (sudah kutahu), alaimo (ambillah sudah)"
+      },
+      {
+        "clitic": "-pa / -pai",
+        "meaning": "Penanda aspek imperfek (masih / belum / nanti)",
+        "example": "monge-mongeq pai (masih sakit rasanya)"
+      },
+      {
+        "clitic": "-di",
+        "meaning": "Partikel penegas atau pronomina enklitik",
+        "example": "sangapa di mu bengang aq (berapa saja kau berikan padaku)"
+      },
+      {
+        "clitic": "-toi / -toqo",
+        "meaning": "Juga / pula",
+        "example": "meloq toi (mau juga)"
+      },
+      {
+        "clitic": "-tuqu",
+        "meaning": "Penunjuk kepastian / itulah",
+        "example": "masiriq mi tuqu tau (pasti kita akan malu)"
+      },
+      {
+        "clitic": "-bandi",
+        "meaning": "Lagi / masih terus berlangsung",
+        "example": "tandaq bandi (masih saja sampai)"
+      },
+      {
+        "clitic": "-nasang",
+        "meaning": "Semua / seluruhnya",
+        "example": "latto nasang mi (sudah nampak semua)"
+      },
+      {
+        "clitic": "-dua / -duai",
+        "meaning": "Masih / tetap",
+        "example": "uso-uso dua pai (ia masih terengah-engah)"
+      }
+    ]
+  }
+}
