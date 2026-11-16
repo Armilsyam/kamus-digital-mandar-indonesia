@@ -152,3 +152,12 @@ export function dissectMorphology(word: string): MorphologicalAnalysis {
     description: `Kata '${word}' terdiri dari ${components.length} unsur pembentuk: ${components.map(c => `${c.morpheme} (${c.name})`).join(', ')}.`
   };
 }
+
+
+export function stripAffixes(word: string): { root: string; analysis: MorphologicalAnalysis } {
+  const analysis = dissectMorphology(word);
+  return {
+    root: analysis.rootWord,
+    analysis
+  };
+}

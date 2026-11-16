@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { 
   Search, 
   X, 
@@ -23,7 +23,15 @@ import {
   ShieldCheck,
   Languages,
   MessageCircle,
-  HelpCircle
+  HelpCircle,
+  Feather,
+  MapPin,
+  BookMarked,
+  GraduationCap,
+  Quote,
+  Mic,
+  Database,
+  Flame
 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
@@ -38,6 +46,18 @@ import { BudayaGoInfo } from '@/components/BudayaGoInfo';
 import { KakaAI } from '@/components/KakaAI';
 import { AdminCollaboration } from '@/components/AdminCollaboration';
 import { AudioSpeechStudio } from '@/components/AudioSpeechStudio';
+
+// 10 New Advanced Feature Components
+import { KalindaqdaqStudio } from '@/components/KalindaqdaqStudio';
+import { DialectMap } from '@/components/DialectMap';
+import { SentenceTranslator } from '@/components/SentenceTranslator';
+import { ThematicPhrasebook } from '@/components/ThematicPhrasebook';
+import { TeacherWorksheetGenerator } from '@/components/TeacherWorksheetGenerator';
+import { ProverbsWisdom } from '@/components/ProverbsWisdom';
+import { CelestialNavigation } from '@/components/CelestialNavigation';
+import { PronunciationEvaluator } from '@/components/PronunciationEvaluator';
+import { ApiDataExport } from '@/components/ApiDataExport';
+import { LearningHubWidget } from '@/components/LearningHubWidget';
 
 import rawDictionary from '@/data/mandar_dictionary.json';
 
@@ -133,6 +153,18 @@ export default function Home() {
     }, 100);
   };
 
+  // Record Search history helper
+  const recordSearchTerm = useCallback((term: string) => {
+    if (!term || term.trim().length < 2) return;
+    const clean = term.trim().toLowerCase();
+    try {
+      const saved = localStorage.getItem('kadima_search_history');
+      const list = saved ? JSON.parse(saved) as string[] : [];
+      const updated = [clean, ...list.filter(item => item !== clean)].slice(0, 20);
+      localStorage.setItem('kadima_search_history', JSON.stringify(updated));
+    } catch {}
+  }, []);
+
   // Keyboard shortcut Ctrl+K / Cmd+K
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -144,6 +176,16 @@ export default function Home() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Debounced search recording
+  useEffect(() => {
+    if (searchQuery.trim().length >= 3) {
+      const timeout = setTimeout(() => {
+        recordSearchTerm(searchQuery);
+      }, 1000);
+      return () => clearTimeout(timeout);
+    }
+  }, [searchQuery, recordSearchTerm]);
 
   // Filtered entries across Mandar, Indonesian, and English!
   const filteredEntries = useMemo(() => {
@@ -198,6 +240,7 @@ export default function Home() {
     setSelectedPos('all');
     setCurrentPage(1);
     setActiveTab('kamus');
+    recordSearchTerm(root);
   };
 
   const handleGoToTab = (tab: string, param?: string) => {
@@ -211,10 +254,17 @@ export default function Home() {
     setSelectedEntry(ALL_ENTRIES[randomIdx]);
   };
 
+  const handleSearchFromHub = (word: string) => {
+    setSearchQuery(word);
+    setCurrentPage(1);
+    setActiveTab('kamus');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-mandar-sand-50/50 dark:bg-slate-950 bg-saqbe-pattern transition-colors">
       
-      {/* Main Navbar */}
+      {/* Main Navbar with All 20 Features */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -299,6 +349,7 @@ export default function Home() {
                       onClick={() => {
                         setSearchQuery(word);
                         setCurrentPage(1);
+                        recordSearchTerm(word);
                       }}
                       className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors"
                     >
@@ -306,6 +357,45 @@ export default function Home() {
                     </button>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            {/* Quick Feature Switcher Strip (10 New Highlights) */}
+            <div className="bg-gradient-to-r from-mandar-gold-500/10 via-mandar-maroon-900/10 to-transparent dark:from-mandar-gold-500/5 p-4 rounded-3xl border border-mandar-gold-400/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+              <div className="flex items-center space-x-2">
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-extrabold text-[10px]">
+                  10 FITUR BARU
+                </span>
+                <span className="text-xs font-bold text-stone-800 dark:text-white">
+                  Jelajahi inovasi baru KADIMA-ID:
+                </span>
+              </div>
+
+              <div className="flex items-center space-x-1.5 overflow-x-auto max-w-full pb-1">
+                {[
+                  { id: 'terjemah', label: 'Penerjemah Kalimat', icon: Languages },
+                  { id: 'kalindaqdaq', label: 'Studio Kalindaqdaq', icon: Feather },
+                  { id: 'dialek', label: 'Peta Dialek Sulbar', icon: MapPin },
+                  { id: 'frasa', label: 'Buku Frasa Audio', icon: BookMarked },
+                  { id: 'guru', label: 'Lembar Guru PDF', icon: GraduationCap },
+                  { id: 'bintang', label: 'Navigasi Bintang', icon: Compass },
+                  { id: 'pappasang', label: 'Peribahasa Pappasang', icon: Quote },
+                  { id: 'evaluator', label: 'Uji Pelafalan Mic', icon: Mic },
+                  { id: 'api-ekspor', label: 'Ekspor Data/API', icon: Database },
+                  { id: 'belajar', label: 'Kata Hari Ini', icon: Flame },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id)}
+                      className="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-mandar-sand-300 dark:border-slate-700 hover:border-mandar-maroon-600 text-stone-800 dark:text-slate-200 text-xs font-semibold whitespace-nowrap shadow-sm transition-all"
+                    >
+                      <Icon className="w-3.5 h-3.5 text-mandar-maroon-700 dark:text-mandar-gold-400" />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -414,7 +504,7 @@ export default function Home() {
                 </h3>
                 <p className="text-xs text-stone-500 dark:text-slate-400 leading-relaxed">
                   Tidak ditemukan lema yang cocok dengan kriteria pencarian Anda. 
-                  Coba ubah kata kunci atau tanyakan langsung kepada <strong>Kaka-AI</strong>.
+                  Coba ubah kata kunci atau tanyakan langsung kepada <strong>Kaka-AI</strong> atau buka <strong>Penerjemah Kalimat</strong>.
                 </p>
                 <div className="flex items-center justify-center space-x-3">
                   <button
@@ -499,7 +589,82 @@ export default function Home() {
         )}
 
         {/* ======================================================== */}
-        {/* TAB 2: ASISTEN AI KAKA-AI */}
+        {/* FITUR BARU #1: STUDIO KALINDAQDAQ (8-7-8-7)              */}
+        {/* ======================================================== */}
+        {activeTab === 'kalindaqdaq' && (
+          <KalindaqdaqStudio />
+        )}
+
+        {/* ======================================================== */}
+        {/* FITUR BARU #2: PETA DIALEKTOLOGI SULAWESI BARAT          */}
+        {/* ======================================================== */}
+        {activeTab === 'dialek' && (
+          <DialectMap />
+        )}
+
+        {/* ======================================================== */}
+        {/* FITUR BARU #3: PENERJEMAH KALIMAT DWIARAH                */}
+        {/* ======================================================== */}
+        {activeTab === 'terjemah' && (
+          <SentenceTranslator onSelectEntry={(entry) => setSelectedEntry(entry)} />
+        )}
+
+        {/* ======================================================== */}
+        {/* FITUR BARU #4: BUKU FRASA PERCAKAPAN TEMATIS             */}
+        {/* ======================================================== */}
+        {activeTab === 'frasa' && (
+          <ThematicPhrasebook />
+        )}
+
+        {/* ======================================================== */}
+        {/* FITUR BARU #5: GENERATOR LEMBAR KERJA GURU & PDF (A4)    */}
+        {/* ======================================================== */}
+        {activeTab === 'guru' && (
+          <TeacherWorksheetGenerator />
+        )}
+
+        {/* ======================================================== */}
+        {/* FITUR BARU #6: PERIBAHASA & PAPPASANG LUHUR MANDAR       */}
+        {/* ======================================================== */}
+        {activeTab === 'pappasang' && (
+          <ProverbsWisdom />
+        )}
+
+        {/* ======================================================== */}
+        {/* FITUR BARU #7: NAVIGASI BINTANG PASSOMBAL & KOMPAS ANGIN  */}
+        {/* ======================================================== */}
+        {activeTab === 'bintang' && (
+          <CelestialNavigation />
+        )}
+
+        {/* ======================================================== */}
+        {/* FITUR BARU #8: PEREKAM & UJI PELAFALAN SUARA             */}
+        {/* ======================================================== */}
+        {activeTab === 'evaluator' && (
+          <PronunciationEvaluator />
+        )}
+
+        {/* ======================================================== */}
+        {/* FITUR BARU #9: PLAYGROUND API & EKSPOR DATA AKADEMIK     */}
+        {/* ======================================================== */}
+        {activeTab === 'api-ekspor' && (
+          <ApiDataExport />
+        )}
+
+        {/* ======================================================== */}
+        {/* FITUR BARU #10: PUSAT BELAJAR PRIBADI & KATA HARI INI    */}
+        {/* ======================================================== */}
+        {activeTab === 'belajar' && (
+          <LearningHubWidget
+            onSearchWord={handleSearchFromHub}
+            onSelectEntry={(entry) => setSelectedEntry(entry)}
+            bookmarksCount={bookmarkedIds.size}
+            openBookmarks={() => setIsBookmarksOpen(true)}
+          />
+        )}
+
+        {/* ======================================================== */}
+        {/* FITUR EXISTING: ASISTEN AI KAKA-AI                       */}
         {/* ======================================================== */}
         {activeTab === 'kaka' && (
           <KakaAI
@@ -510,56 +675,56 @@ export default function Home() {
         )}
 
         {/* ======================================================== */}
-        {/* TAB 3: STUDIO SUARA / MULTI-FUNGSI TTS */}
+        {/* FITUR EXISTING: STUDIO SUARA / MULTI-FUNGSI TTS          */}
         {/* ======================================================== */}
         {activeTab === 'tts' && (
           <AudioSpeechStudio />
         )}
 
         {/* ======================================================== */}
-        {/* TAB 4: LAB FONOLOGI & ALOFON */}
+        {/* FITUR EXISTING: LAB FONOLOGI & ALOFON                    */}
         {/* ======================================================== */}
         {activeTab === 'fonologi' && (
           <PhonologyLab initialWord={labWord} soundEnabled={soundEnabled} />
         )}
 
         {/* ======================================================== */}
-        {/* TAB 5: AKSARA LONTARA MANDAR */}
+        {/* FITUR EXISTING: AKSARA LONTARA MANDAR                    */}
         {/* ======================================================== */}
         {activeTab === 'lontara' && (
           <LontaraConverter />
         )}
 
         {/* ======================================================== */}
-        {/* TAB 6: BEDAH MORFOLOGI */}
+        {/* FITUR EXISTING: BEDAH MORFOLOGI                          */}
         {/* ======================================================== */}
         {activeTab === 'morfologi' && (
           <MorphologyAnalyzer initialWord={labWord} />
         )}
 
         {/* ======================================================== */}
-        {/* TAB 7: ENSIKLOPEDIA BUDAYA MARITIM & ILUSTRASI */}
+        {/* FITUR EXISTING: ENSIKLOPEDIA BUDAYA MARITIM & ILUSTRASI  */}
         {/* ======================================================== */}
         {activeTab === 'budaya' && (
           <CultureEncyclopedia soundEnabled={soundEnabled} />
         )}
 
         {/* ======================================================== */}
-        {/* TAB 8: POJOK BELAJAR & KUIS CERDAS */}
+        {/* FITUR EXISTING: POJOK BELAJAR & KUIS CERDAS              */}
         {/* ======================================================== */}
         {activeTab === 'kuis' && (
           <QuizGame soundEnabled={soundEnabled} />
         )}
 
         {/* ======================================================== */}
-        {/* TAB 9: ADMIN, SUPPORT WHATSAPP & DONASI DANA 082291544262 */}
+        {/* FITUR EXISTING: ADMIN & DANA DONASI 082291544262         */}
         {/* ======================================================== */}
         {activeTab === 'admin' && (
           <AdminCollaboration />
         )}
 
         {/* ======================================================== */}
-        {/* TAB 10: INOVASI DIGITAL BUDAYAGO 2025 */}
+        {/* FITUR EXISTING: INOVASI BUDAYAGO 2025                    */}
         {/* ======================================================== */}
         {activeTab === 'inovasi' && (
           <BudayaGoInfo />
@@ -581,7 +746,7 @@ export default function Home() {
       {activeTab !== 'kaka' && (
         <button
           onClick={() => setActiveTab('kaka')}
-          className="fixed bottom-6 right-6 z-40 p-4 rounded-3xl bg-gradient-to-tr from-mandar-maroon-800 to-mandar-gold-500 text-white shadow-2xl hover:scale-105 transition-all flex items-center space-x-2 border-2 border-white/20 group"
+          className="print:hidden fixed bottom-6 right-6 z-40 p-4 rounded-3xl bg-gradient-to-tr from-mandar-maroon-800 to-mandar-gold-500 text-white shadow-2xl hover:scale-105 transition-all flex items-center space-x-2 border-2 border-white/20 group"
           title="Buka Asisten Kaka-AI"
         >
           <div className="relative">
