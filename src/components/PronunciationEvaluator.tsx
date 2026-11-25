@@ -100,7 +100,12 @@ export const PronunciationEvaluator: React.FC = () => {
   }, []);
 
   const handlePlayNative = () => {
-    speakText(selectedWord.word, { lang: 'mandar', rate: 0.82 });
+    speakText(selectedWord.word, { 
+      lang: 'mandar', 
+      rate: 0.82, 
+      gender: 'female', 
+      voiceProfile: 'indoq' 
+    });
   };
 
   const startVisualizer = (stream: MediaStream) => {

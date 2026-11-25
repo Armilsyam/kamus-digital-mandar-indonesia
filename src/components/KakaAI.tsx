@@ -233,7 +233,11 @@ export const KakaAI: React.FC<KakaAIProps> = ({
     setMessages(prev => [...prev, diagnosticMsg]);
 
     if (soundEnabled) {
-      speakText(`Mari kita uji pemahamanmu tentang ${q.conceptName}. ${q.question}`, { lang: 'indonesia' });
+      speakText(`Mari kita uji pemahamanmu tentang ${q.conceptName}. ${q.question}`, { 
+        lang: 'indonesia',
+        gender: 'female',
+        voiceProfile: 'kaka'
+      });
     }
   };
 
@@ -265,7 +269,11 @@ export const KakaAI: React.FC<KakaAIProps> = ({
       setMessages(prev => [...prev, tutorFeedback]);
 
       if (soundEnabled) {
-        speakText(isCorrect ? "Kurru Sumangaq! Jawabanmu tepat sekali." : "Jawabanmu belum tepat, ayo pelajari pembahasannya.", { lang: 'indonesia' });
+        speakText(isCorrect ? "Kurru Sumangaq! Jawabanmu tepat sekali." : "Jawabanmu belum tepat, ayo pelajari pembahasannya.", { 
+          lang: 'indonesia',
+          gender: 'female',
+          voiceProfile: 'kaka'
+        });
       }
     }, 500);
   };
@@ -316,6 +324,8 @@ export const KakaAI: React.FC<KakaAIProps> = ({
     setPlayingMessageId(msgId);
     speakText(text, {
       lang: lang,
+      gender: 'female',
+      voiceProfile: 'kaka',
       onEnd: () => setPlayingMessageId(null),
       onError: () => setPlayingMessageId(null)
     });
@@ -429,6 +439,11 @@ export const KakaAI: React.FC<KakaAIProps> = ({
             <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/15">
               <Flame className="w-4 h-4 text-amber-400 fill-amber-400" />
               <span>Streak Belajar: <strong>{learningProfile.learningStreakDays} Hari</strong></span>
+            </div>
+
+            <div className="flex items-center space-x-2 bg-rose-500/20 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-rose-400/30 text-rose-100">
+              <Volume2 className="w-4 h-4 text-rose-300" />
+              <span>Suara AI: <strong>Kaka Mandar (Perempuan Asli)</strong></span>
             </div>
           </div>
         </div>

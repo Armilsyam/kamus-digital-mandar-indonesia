@@ -163,7 +163,13 @@ export const KalindaqdaqStudio: React.FC = () => {
 
   const handlePlayAudio = (lines: string[]) => {
     const poemText = lines.join(', ');
-    speakText(poemText, { lang: 'mandar', rate: 0.82, pitch: 1.05 });
+    speakText(poemText, { 
+      lang: 'mandar', 
+      rate: 0.82, 
+      pitch: 1.15, 
+      gender: 'female', 
+      voiceProfile: 'indoq' 
+    });
   };
 
   const handleCopyPoem = (verse: KalindaqdaqVerse) => {
