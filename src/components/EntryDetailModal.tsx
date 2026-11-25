@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   X, 
   Volume2, 
@@ -12,15 +12,30 @@ import {
   BookMarked, 
   Sparkles, 
   Layers, 
-  ArrowRight,
-  Info,
-  Globe2,
-  Bot
+  ArrowRight, 
+  Info, 
+  Globe2, 
+  Bot,
+  Brain,
+  Award,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  Send,
+  Lightbulb,
+  Zap
 } from 'lucide-react';
 import { DictionaryEntry } from './DictionaryCard';
 import { speakText, stopSpeaking } from '@/lib/audio';
 import { analyzePhonetics } from '@/lib/phonetics';
 import { dissectMorphology } from '@/lib/morphology';
+import { 
+  recordWordInteraction, 
+  getWordMastery, 
+  WordMasteryRecord, 
+  evaluateFreeTextComprehension, 
+  FreeTextEvaluationResult 
+} from '@/lib/learningTracker';
 
 interface EntryDetailModalProps {
   entry: DictionaryEntry | null;
@@ -42,6 +57,51 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
   const [isCopied, setIsCopied] = useState(false);
   const [playingLang, setPlayingLang] = useState<string | null>(null);
 
+  // Cognitive Interactive States
+  const [wordMastery, setWordMastery] = useState<WordMasteryRecord | null>(null);
+  const [activeTestMode, setActiveTestMode] = useState<'quiz' | 'explain'>('quiz');
+  
+  // Quick Micro-Quiz State
+  const [quizAnswerState, setQuizAnswerState] = useState<{
+    selectedIndex: number | null;
+    isSubmitted: boolean;
+    isCorrect: boolean;
+  }>({ selectedIndex: null, isSubmitted: false, isCorrect: false });
+
+  // Free-Text Explanation State
+  const [userExplanation, setUserExplanation] = useState('');
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evalResult, setEvalResult] = useState<FreeTextEvaluationResult | null>(null);
+
+  useEffect(() => {
+    if (entry) {
+      // Record view in learning tracker
+      const updated = recordWordInteraction(entry.cleanLemma, 'view', entry.category, entry.definition);
+      setWordMastery(updated);
+      setQuizAnswerState({ selectedIndex: null, isSubmitted: false, isCorrect: false });
+      setUserExplanation('');
+      setEvalResult(null);
+    }
+  }, [entry]);
+
+  // Generate 3 plausible options for quick micro-quiz
+  const microQuizOptions = useMemo(() => {
+    if (!entry) return [];
+    const correct = entry.definition;
+    const plausible = [
+      correct,
+      `Bentuk ungkapan kesantunan masyarakat pesisir Mandar yang berkaitan dengan ${entry.category.toLowerCase()}`,
+      `Nama perlengkapan atau perkakas bahari tradisional yang digunakan dalam kehidupan sehari-hari`
+    ];
+    // Deterministic shuffle based on word length
+    return entry.lemma.length % 2 === 0 ? plausible : [plausible[1], correct, plausible[2]];
+  }, [entry]);
+
+  const correctOptionIndex = useMemo(() => {
+    if (!entry) return 0;
+    return microQuizOptions.indexOf(entry.definition);
+  }, [entry, microQuizOptions]);
+
   if (!entry) return null;
 
   const phonetics = analyzePhonetics(entry.lemma);
@@ -56,11 +116,65 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
     }
 
     setPlayingLang(lang);
+    if (lang === 'mandar') {
+      const rec = recordWordInteraction(entry.cleanLemma, 'listen', entry.category, entry.definition);
+      setWordMastery(rec);
+    }
+
     speakText(text, {
       lang: lang,
       onEnd: () => setPlayingLang(null),
       onError: () => setPlayingLang(null)
     });
+  };
+
+  const handleQuizAnswer = (index: number) => {
+    if (quizAnswerState.isSubmitted) return;
+    const isCorrect = index === correctOptionIndex;
+    setQuizAnswerState({
+      selectedIndex: index,
+      isSubmitted: true,
+      isCorrect
+    });
+
+    const updated = recordWordInteraction(
+      entry.cleanLemma,
+      isCorrect ? 'quiz_correct' : 'quiz_wrong',
+      entry.category,
+      entry.definition
+    );
+    setWordMastery(updated);
+
+    if (soundEnabled) {
+      speakText(isCorrect ? "Kurru Sumangaq! Jawabanmu tepat sekali." : "Jawabanmu belum tepat, perhatikan kembali definisinya.", {
+        lang: 'indonesia',
+        gender: 'female',
+        voiceProfile: 'kaka'
+      });
+    }
+  };
+
+  const handleEvaluateFreeText = () => {
+    if (!userExplanation.trim()) return;
+    setIsEvaluating(true);
+
+    setTimeout(() => {
+      const res = evaluateFreeTextComprehension(entry.lemma, userExplanation);
+      setEvalResult(res);
+      setIsEvaluating(false);
+
+      const action = res.score >= 60 ? 'quiz_correct' : 'quiz_wrong';
+      const updated = recordWordInteraction(entry.cleanLemma, action, entry.category, entry.definition);
+      setWordMastery(updated);
+
+      if (soundEnabled) {
+        speakText(res.kakaReactionMandar + " " + res.feedback, {
+          lang: 'indonesia',
+          gender: 'female',
+          voiceProfile: 'kaka'
+        });
+      }
+    }, 500);
   };
 
   const handleCopy = () => {
@@ -241,6 +355,173 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
             </div>
           )}
 
+          {/* ======================================================== */}
+          {/* NEW SECTION: AI TEMAN BELAJAR MANDIRI - UJI PEMAHAMAN    */}
+          {/* ======================================================== */}
+          <div className="rounded-3xl p-6 bg-gradient-to-br from-mandar-sand-50 via-white to-mandar-gold-50/50 dark:from-slate-900 dark:via-slate-850 dark:to-slate-800 border-2 border-mandar-gold-300 dark:border-mandar-gold-800 shadow-md space-y-4">
+            
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-mandar-sand-200 dark:border-slate-700 pb-3">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-mandar-maroon-700 to-mandar-gold-500 flex items-center justify-center text-white">
+                  <Brain className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-stone-900 dark:text-white flex items-center space-x-2">
+                    <span>Teman Belajar Mandiri: Uji Pemahaman Anda</span>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                      Kaka-AI Live
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-stone-500 dark:text-slate-400">
+                    AI mendiagnosis apakah Anda sudah paham makna dan penggunaan lema ini
+                  </p>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className="flex items-center space-x-2">
+                <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${
+                  (wordMastery?.comprehensionScore || 0) >= 80
+                    ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200 border-emerald-400'
+                    : (wordMastery?.comprehensionScore || 0) >= 45
+                    ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border-amber-400'
+                    : 'bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-200 border-rose-400'
+                }`}>
+                  Tingkat Pemahaman: {wordMastery?.comprehensionScore || 20}% ({wordMastery?.status ? wordMastery.status.replace('_', ' ').toUpperCase() : 'BELUM DIUJI'})
+                </span>
+              </div>
+            </div>
+
+            {/* Test Mode Selector */}
+            <div className="flex items-center space-x-2 border-b border-mandar-sand-200 dark:border-slate-800 pb-2 text-xs font-bold">
+              <button
+                onClick={() => setActiveTestMode('quiz')}
+                className={`px-3 py-1.5 rounded-xl transition-all ${
+                  activeTestMode === 'quiz'
+                    ? 'bg-mandar-maroon-700 text-white shadow-sm'
+                    : 'text-stone-600 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                1. Kuis Kilat 1-Soal
+              </button>
+              <button
+                onClick={() => setActiveTestMode('explain')}
+                className={`px-3 py-1.5 rounded-xl transition-all ${
+                  activeTestMode === 'explain'
+                    ? 'bg-mandar-maroon-700 text-white shadow-sm'
+                    : 'text-stone-600 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                2. Jelaskan dengan Bahasamu Sendiri (AI Evaluator)
+              </button>
+            </div>
+
+            {/* Mode 1: Quick Quiz */}
+            {activeTestMode === 'quiz' && (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-stone-700 dark:text-slate-300">
+                  🎯 Pertanyaan Kaka-AI: Berdasarkan leksikon Balai Bahasa 2025, manakah definisi yang paling tepat untuk lema <strong>&quot;{entry.lemma}&quot;</strong>?
+                </p>
+                <div className="space-y-2">
+                  {microQuizOptions.map((opt, idx) => {
+                    const isSelected = quizAnswerState.selectedIndex === idx;
+                    const isSubmitted = quizAnswerState.isSubmitted;
+                    const isCorrectChoice = idx === correctOptionIndex;
+
+                    let btnStyle = 'bg-white dark:bg-slate-800 border-mandar-sand-300 dark:border-slate-700 text-stone-800 dark:text-slate-200 hover:border-mandar-maroon-600';
+                    if (isSubmitted) {
+                      if (isCorrectChoice) {
+                        btnStyle = 'bg-emerald-100 dark:bg-emerald-950 border-emerald-500 text-emerald-900 dark:text-emerald-200 font-bold';
+                      } else if (isSelected && !quizAnswerState.isCorrect) {
+                        btnStyle = 'bg-rose-100 dark:bg-rose-950 border-rose-500 text-rose-900 dark:text-rose-200 line-through';
+                      }
+                    }
+
+                    return (
+                      <button
+                        key={idx}
+                        disabled={quizAnswerState.isSubmitted}
+                        onClick={() => handleQuizAnswer(idx)}
+                        className={`w-full text-left p-3 rounded-xl border text-xs transition-all flex items-center justify-between ${btnStyle}`}
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          <span className="w-5 h-5 rounded-md bg-stone-100 dark:bg-slate-700 flex items-center justify-center font-bold text-[10px] shrink-0">
+                            {String.fromCharCode(65 + idx)}
+                          </span>
+                          <span className="line-clamp-2">{opt}</span>
+                        </div>
+                        {isSubmitted && isCorrectChoice && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 ml-2" />}
+                        {isSubmitted && isSelected && !quizAnswerState.isCorrect && <XCircle className="w-4 h-4 text-rose-600 shrink-0 ml-2" />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {quizAnswerState.isSubmitted && (
+                  <div className={`p-3 rounded-xl text-xs space-y-1 ${
+                    quizAnswerState.isCorrect ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200' : 'bg-rose-50 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200'
+                  }`}>
+                    <span className="font-bold block">
+                      {quizAnswerState.isCorrect ? '🎉 Masannang atinku! Jawaban Anda Tepat!' : '⚠️ Jawaban belum tepat, silakan baca ulang definisinya.'}
+                    </span>
+                    <p className="text-[11px] opacity-90">
+                      Tingkat pemahaman kata ini telah diperbarui menjadi <strong>{wordMastery?.comprehensionScore}%</strong> di riwayat profil Anda.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Mode 2: Free Text Explanation Evaluator */}
+            {activeTestMode === 'explain' && (
+              <div className="space-y-3">
+                <p className="text-xs text-stone-600 dark:text-slate-300">
+                  ✍️ Tuliskan penjelasan Anda dengan kata-kata sendiri mengenai apa itu <strong>&quot;{entry.lemma}&quot;</strong>. AI Kaka akan membaca penjelasanmu dan mendiagnosis apakah Anda sudah benar-benar paham:
+                </p>
+                <div className="space-y-2">
+                  <textarea
+                    rows={3}
+                    value={userExplanation}
+                    onChange={(e) => setUserExplanation(e.target.value)}
+                    placeholder={`Contoh: Menurut saya, ${entry.lemma} adalah...`}
+                    className="w-full p-3 rounded-2xl bg-white dark:bg-slate-800 border border-mandar-sand-300 dark:border-slate-700 text-xs text-stone-900 dark:text-white outline-none focus:border-mandar-maroon-700 resize-none"
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-stone-400">
+                      Minimal 4-6 kata untuk penilaian komprehensif
+                    </span>
+                    <button
+                      onClick={handleEvaluateFreeText}
+                      disabled={isEvaluating || !userExplanation.trim()}
+                      className="px-4 py-2 rounded-xl bg-mandar-maroon-700 hover:bg-mandar-maroon-800 disabled:opacity-40 text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm transition-colors"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>{isEvaluating ? 'Menganalisis...' : 'Minta Kaka-AI Menilai'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {evalResult && (
+                  <div className={`p-4 rounded-2xl border text-xs space-y-2 animate-in fade-in ${
+                    evalResult.isUnderstood ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 text-emerald-900 dark:text-emerald-200' : 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 text-amber-900 dark:text-amber-200'
+                  }`}>
+                    <div className="flex items-center justify-between font-bold">
+                      <span className="flex items-center space-x-1.5">
+                        <Award className="w-4 h-4 text-mandar-gold-600" />
+                        <span>Skor Pemahaman AI: {evalResult.score}% ({evalResult.level.toUpperCase()})</span>
+                      </span>
+                      <span className="text-[11px] italic">{evalResult.kakaReactionMandar}</span>
+                    </div>
+                    <p className="leading-relaxed text-[11px]">
+                      {evalResult.feedback}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+          </div>
+
           {/* Phonological & Allophonic Breakdown */}
           <div className="border border-mandar-sand-200 dark:border-slate-800 rounded-2xl p-5 bg-gradient-to-br from-white to-mandar-sand-50/50 dark:from-slate-900 dark:to-slate-800/30">
             <div className="flex items-center justify-between mb-3">
@@ -338,17 +619,17 @@ export const EntryDetailModal: React.FC<EntryDetailModalProps> = ({
             <div className="flex items-center space-x-2.5">
               <Bot className="w-5 h-5 text-mandar-maroon-700 dark:text-mandar-gold-400" />
               <span className="text-xs font-bold text-stone-800 dark:text-white">
-                Ingin tahu lebih dalam tentang kata ini?
+                Ingin konsultasi percakapan lengkap tentang kata ini?
               </span>
             </div>
             <button
               onClick={() => {
                 onClose();
-                onGoToTab('kaka', `Tolong jelaskan secara mendalam tentang kata Mandar '${entry.lemma}'`);
+                onGoToTab('kaka', `Tolong uji pemahamanku tentang kata Mandar '${entry.lemma}'`);
               }}
               className="px-3.5 py-1.5 rounded-xl bg-mandar-maroon-700 text-white font-bold text-xs shadow-sm hover:bg-mandar-maroon-800 flex items-center space-x-1"
             >
-              <span>Tanya Kaka-AI</span>
+              <span>Uji di Kaka-AI</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>

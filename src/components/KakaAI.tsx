@@ -28,7 +28,11 @@ import {
   RefreshCw,
   Lightbulb,
   Zap,
-  GraduationCap
+  GraduationCap,
+  Printer,
+  Download,
+  FileCheck,
+  BookMarked
 } from 'lucide-react';
 import { speakText, stopSpeaking } from '@/lib/audio';
 import { DictionaryEntry } from './DictionaryCard';
@@ -40,7 +44,13 @@ import {
   recordLearningActivity, 
   updateMasteryFromQuiz, 
   UserLearningProfile, 
-  ConceptMastery 
+  ConceptMastery,
+  getAllWordMasteries,
+  getRecentLearnedWords,
+  recordWordInteraction,
+  evaluateFreeTextComprehension,
+  FreeTextEvaluationResult,
+  WordMasteryRecord
 } from '@/lib/learningTracker';
 
 interface Message {
@@ -52,6 +62,7 @@ interface Message {
   timestamp: string;
   isDiagnosticCheck?: boolean;
   diagnosticQuestion?: DiagnosticQuestion;
+  evalResult?: FreeTextEvaluationResult;
 }
 
 interface DiagnosticQuestion {
@@ -145,17 +156,23 @@ export const KakaAI: React.FC<KakaAIProps> = ({
   onSelectEntry,
   onGoToTab,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'chat' | 'diagnosis' | 'mastery' | 'study_plan'>('chat');
+  const [activeSubTab, setActiveSubTab] = useState<'chat' | 'diagnosis' | 'evaluator' | 'mastery' | 'study_plan'>('chat');
   
   // Learning Profile State (Real-time Adaptive)
   const [learningProfile, setLearningProfile] = useState<UserLearningProfile>(getUserLearningProfile);
-  
+  const [wordMasteries, setWordMasteries] = useState<Record<string, WordMasteryRecord>>(getAllWordMasteries);
+  const [masteryFilter, setMasteryFilter] = useState<'all' | 'mahir' | 'sedang_belajar' | 'belum_paham'>('all');
+
+  // Certificate student name
+  const [studentName, setStudentName] = useState('Pelajar Budaya Mandar');
+  const [isCertificateView, setIsCertificateView] = useState(false);
+
   // Chat Messages State
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome-tutor',
       sender: 'kaka',
-      text: "Tabe! Salam budaya. Kaka senang sekali bertemu denganmu lagi! ⛵\n\nKaka adalah Teman Belajar Mandiri AI pribadimu. Kaka secara otomatis membaca catatan aktivitas dan riwayat belajarmu di platform ini untuk memahami materi mana yang sudah kamu kuasai dan mana yang masih perlu kita latih bersama.\n\nMau menguji pemahamanmu hari ini, berlatih percakapan santai, atau butuh penjelasan leksikon?",
+      text: "Tabe! Salam budaya. Kaka senang sekali bertemu denganmu lagi! ⛵\n\nKaka adalah Teman Belajar Mandiri AI pribadimu. Kaka secara otomatis membaca catatan aktivitas dan riwayat belajarmu di platform ini untuk memahami materi mana yang sudah kamu kuasai dan mana yang masih perlu kita latih bersama.\n\nKamu bisa meminta Kaka menguji pemahamanmu, mengevaluasi penjelasanmu dalam kata-katamu sendiri, atau menguji kosakata yang baru saja kamu buka!",
       lang: 'indonesia',
       timestamp: 'Baru saja'
     }
@@ -164,6 +181,12 @@ export const KakaAI: React.FC<KakaAIProps> = ({
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+
+  // Free-Text Evaluator Sub-Tab State
+  const [evaluatorTopic, setEvaluatorTopic] = useState('sandeq');
+  const [evaluatorUserText, setEvaluatorUserText] = useState('');
+  const [evaluatorResult, setEvaluatorResult] = useState<FreeTextEvaluationResult | null>(null);
+  const [evaluatorLoading, setEvaluatorLoading] = useState(false);
 
   // Diagnostic Quiz Interactive State
   const [currentDiagnostic, setCurrentDiagnostic] = useState<DiagnosticQuestion | null>(null);
@@ -178,6 +201,7 @@ export const KakaAI: React.FC<KakaAIProps> = ({
   // Refresh profile periodically or on tab switch
   const refreshProfile = () => {
     setLearningProfile(getUserLearningProfile());
+    setWordMasteries(getAllWordMasteries());
   };
 
   useEffect(() => {
@@ -196,22 +220,44 @@ export const KakaAI: React.FC<KakaAIProps> = ({
   const dynamicQuickPrompts = useMemo(() => {
     const weakest = learningProfile.weakestConcepts[0]?.name || 'Fonologi';
     const streak = learningProfile.learningStreakDays;
+    const recentWords = getRecentLearnedWords(3).map(w => w.lemma);
+    const wordPrompt = recentWords.length > 0 ? `Uji pemahamanku tentang '${recentWords[0]}'` : 'Coba uji pemahamanku tentang Fonologi!';
     return [
       `Kaka, bagaimana evaluasi pemahamanku sejauh ini?`,
-      `Coba uji pemahamanku tentang ${weakest}!`,
+      wordPrompt,
+      `Coba nilai penjelasan saya: Sandeq adalah perahu layar bercadik ganda khas Mandar yang memakai layar sombal tanjaq`,
       `Ajak aku simulasi percakapan belanja di pasar (Pasaq)`,
-      `Bantu jelaskan aturan alofon /b/→[w] dan /d/→[dz]`,
       `Rekomendasikan materi belajar untuk hari ke-${streak} ku`
     ];
   }, [learningProfile]);
 
   // Trigger Socratic Diagnostic Check
-  const triggerDiagnosticCheck = (targetConceptId?: string) => {
+  const triggerDiagnosticCheck = (targetConceptId?: string, customLemma?: string) => {
     setActiveSubTab('chat');
     
-    // Cari pertanyaan yang sesuai konsep terlemah atau acak
     let q: DiagnosticQuestion;
-    if (targetConceptId) {
+
+    if (customLemma) {
+      const found = ALL_ENTRIES.find(e => e.cleanLemma.toLowerCase() === customLemma.toLowerCase());
+      if (found) {
+        q = {
+          conceptId: 'c-kosakata',
+          conceptName: `Lema Khusus: ${found.lemma}`,
+          question: `Berdasarkan leksikon resmi Balai Bahasa 2025, apakah makna yang paling tepat untuk lema Mandar "${found.lemma}"?`,
+          options: [
+            found.definition,
+            `Bentuk sapaan kekerabatan atau kehormatan bagi tokoh masyarakat Mandar`,
+            `Istilah upacara adat maritim yang diadakan saat musim angin barat`,
+            `Peralatan tenun tradisional Lipaq Saqbe khas pedalaman Balanipa`
+          ].sort(() => Math.random() - 0.5),
+          correctIndex: 0,
+          explanation: `Tepat sekali! Menurut Kamus Mandar-Indonesia 2025 (Halaman ${found.page}), "${found.lemma}" (${found.posLabel}) bermakna: ${found.definition}.`
+        };
+        q.correctIndex = q.options.indexOf(found.definition);
+      } else {
+        q = DIAGNOSTIC_QUESTION_BANK[0];
+      }
+    } else if (targetConceptId) {
       q = DIAGNOSTIC_QUESTION_BANK.find(item => item.conceptId === targetConceptId) || DIAGNOSTIC_QUESTION_BANK[0];
     } else {
       const weakest = learningProfile.weakestConcepts[0]?.id;
@@ -224,7 +270,7 @@ export const KakaAI: React.FC<KakaAIProps> = ({
     const diagnosticMsg: Message = {
       id: `diag-${Date.now()}`,
       sender: 'kaka',
-      text: `🔍 [UJI PEMAHAMAN MANDIRI]\nBerdasarkan riwayat belajarmu, Kaka ingin memverifikasi apakah kamu sudah benar-benar paham materi "${q.conceptName}":\n\n"${q.question}"`,
+      text: `🔍 [UJI PEMAHAMAN MANDIRI BERBASIS RIWAYAT]\nKaka melihat catatan belajarmu dan ingin menguji apakah kamu sudah benar-benar paham materi "${q.conceptName}":\n\n"${q.question}"`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isDiagnosticCheck: true,
       diagnosticQuestion: q
@@ -331,26 +377,90 @@ export const KakaAI: React.FC<KakaAIProps> = ({
     });
   };
 
+  // Free-Text Evaluator Submit
+  const handleRunEvaluator = () => {
+    if (!evaluatorUserText.trim()) return;
+    setEvaluatorLoading(true);
+
+    setTimeout(() => {
+      const res = evaluateFreeTextComprehension(evaluatorTopic, evaluatorUserText);
+      setEvaluatorResult(res);
+      setEvaluatorLoading(false);
+      refreshProfile();
+
+      if (soundEnabled) {
+        speakText(res.kakaReactionMandar + " " + res.feedback, {
+          lang: 'indonesia',
+          gender: 'female',
+          voiceProfile: 'kaka'
+        });
+      }
+    }, 500);
+  };
+
   // Intelligent Context-Aware Response Engine
   const generateIntelligentTutorResponse = (query: string): Message => {
     const qLower = query.toLowerCase();
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const profile = getUserLearningProfile();
 
-    // 1. Diagnosis Pemahaman & Evaluasi Riwayat
-    if (qLower.includes('evaluasi') || qLower.includes('pemahamanku') || qLower.includes('paham') || qLower.includes('riwayat')) {
-      const weakest = profile.weakestConcepts.map(c => `• ${c.name} (${c.masteryPercentage}%)`).join('\n');
-      const strongest = profile.strongestConcepts.map(c => `• ${c.name} (${c.masteryPercentage}%)`).join('\n');
+    // 1. Deteksi Permintaan Uji Lema Khusus (misal: "Uji pemahamanku tentang lema 'sandeq'")
+    const matchUjiLema = query.match(/(?:uji|tes|evaluasi)\s+(?:pemahamanku\s+)?(?:tentang\s+)?(?:lema|kata)?\s*['"]?([a-zA-Z\s]+)['"]?/i);
+    if (matchUjiLema && matchUjiLema[1]) {
+      const candidate = matchUjiLema[1].trim();
+      const found = ALL_ENTRIES.find(e => e.cleanLemma.toLowerCase() === candidate.toLowerCase() || e.lemma.toLowerCase() === candidate.toLowerCase());
+      if (found) {
+        triggerDiagnosticCheck(undefined, found.cleanLemma);
+        return {
+          id: `kaka-${Date.now()}`,
+          sender: 'kaka',
+          text: `Siap! Kaka telah menyiapkan pertanyaan uji pemahaman khusus untuk lema "${found.lemma}". Perhatikan pertanyaan di bawah ini! 🎯`,
+          timestamp
+        };
+      }
+    }
 
+    // 2. Deteksi Penjelasan Bebas Pengguna ("coba nilai", "menurut saya", "penjelasan saya", "artinya adalah")
+    if (
+      qLower.includes('nilai penjelasan') || 
+      qLower.includes('apakah pemahamanku') || 
+      qLower.includes('menurut saya') || 
+      qLower.includes('saya rasa') || 
+      qLower.includes('penjelasan saya') ||
+      (qLower.includes('artinya') && qLower.length > 30)
+    ) {
+      // Tentukan topik yang sedang dibahas
+      let detectedTopic = 'sandeq';
+      if (qLower.includes('tabe')) detectedTopic = 'tabe';
+      else if (qLower.includes('saqbe') || qLower.includes('sarung')) detectedTopic = 'saqbe';
+      else if (qLower.includes('kalindaqdaq') || qLower.includes('puisi')) detectedTopic = 'kalindaqdaq';
+      else if (qLower.includes('sandeq') || qLower.includes('perahu')) detectedTopic = 'sandeq';
+
+      const evalRes = evaluateFreeTextComprehension(detectedTopic, query);
       return {
         id: `kaka-${Date.now()}`,
         sender: 'kaka',
-        text: `📊 LAPORAN DIAGNOSTIK PEMAHAMAN BELAJARMU:\n\nSaat ini tingkat pemahamanmu berada di ${profile.overallMasteryPercentage}% dengan gelar: "${profile.levelTitle}".\nKamu sudah mempertahankan streak belajar ${profile.learningStreakDays} hari berturut-turut! 🔥\n\n✅ Materi yang Sudah Sangat Kamu Pahami:\n${strongest}\n\n⚠️ Materi yang Perlu Kita Perkuat Lagi:\n${weakest}\n\n${profile.aiTutorAdvice}\n\nMau Kaka uji dengan 1 pertanyaan sekarang untuk menguji pemahamanmu?`,
+        text: `📊 [HASIL EVALUASI PEMAHAMAN MANDIRI AI]\n\n${evalRes.kakaReactionMandar}\n\n🏆 Skor Akurasi Pemahaman: ${evalRes.score}% (${evalRes.level.toUpperCase()})\n\n💡 Catatan Analisis AI:\n${evalRes.feedback}\n\n${evalRes.keyPointsCovered.length > 0 ? `✅ Konsep yang Kamu Kuasai: ${evalRes.keyPointsCovered.join(', ')}\n` : ''}${evalRes.missingPoints.length > 0 ? `⚠️ Poin yang Perlu Diperdalam: ${evalRes.missingPoints.join(', ')}\n` : ''}\n📈 Kaka telah mencatat evaluasi ini ke riwayat belajarmu untuk memperbarui tingkat penguasaanmu!`,
+        evalResult: evalRes,
         timestamp
       };
     }
 
-    // 2. Permintaan Kuis Uji Pemahaman
+    // 3. Diagnosis Pemahaman & Evaluasi Riwayat
+    if (qLower.includes('evaluasi') || qLower.includes('pemahamanku') || qLower.includes('paham') || qLower.includes('riwayat')) {
+      const weakest = profile.weakestConcepts.map(c => `• ${c.name} (${c.masteryPercentage}%)`).join('\n');
+      const strongest = profile.strongestConcepts.map(c => `• ${c.name} (${c.masteryPercentage}%)`).join('\n');
+      const recentLearned = getRecentLearnedWords(4).map(w => `${w.lemma} (${w.comprehensionScore}%)`).join(', ');
+
+      return {
+        id: `kaka-${Date.now()}`,
+        sender: 'kaka',
+        text: `📊 LAPORAN DIAGNOSTIK PEMAHAMAN BELAJARMU:\n\nSaat ini tingkat pemahamanmu berada di ${profile.overallMasteryPercentage}% dengan gelar: "${profile.levelTitle}".\nKamu sudah mempertahankan streak belajar ${profile.learningStreakDays} hari berturut-turut! 🔥\n\n📚 Kosakata Aktif yang Baru Kamu Pelajari:\n${recentLearned || 'Belum ada kosakata yang tercatat'}\n\n✅ Materi yang Sudah Sangat Kamu Pahami:\n${strongest}\n\n⚠️ Materi yang Perlu Kita Perkuat Lagi:\n${weakest}\n\n${profile.aiTutorAdvice}\n\nMau Kaka uji dengan 1 pertanyaan sekarang untuk menguji pemahamanmu?`,
+        timestamp
+      };
+    }
+
+    // 4. Permintaan Kuis Uji Pemahaman Umum
     if (qLower.includes('uji') || qLower.includes('tes') || qLower.includes('soal')) {
       triggerDiagnosticCheck();
       return {
@@ -361,7 +471,7 @@ export const KakaAI: React.FC<KakaAIProps> = ({
       };
     }
 
-    // 3. Simulasi Percakapan / Roleplay
+    // 5. Simulasi Percakapan / Roleplay
     if (qLower.includes('percakapan') || qLower.includes('simulasi') || qLower.includes('pasar') || qLower.includes('belanja')) {
       return {
         id: `kaka-${Date.now()}`,
@@ -372,7 +482,7 @@ export const KakaAI: React.FC<KakaAIProps> = ({
       };
     }
 
-    // 4. Rekomendasi Belajar
+    // 6. Rekomendasi Belajar
     if (qLower.includes('rekomendasi') || qLower.includes('rencana') || qLower.includes('hari ini')) {
       const weak = profile.weakestConcepts[0];
       return {
@@ -383,13 +493,14 @@ export const KakaAI: React.FC<KakaAIProps> = ({
       };
     }
 
-    // 5. Pencarian Kamus Spesifik
+    // 7. Pencarian Kamus Spesifik
     const foundEntry = ALL_ENTRIES.find(e => qLower.includes(e.cleanLemma.toLowerCase()));
     if (foundEntry) {
+      recordWordInteraction(foundEntry.cleanLemma, 'view', foundEntry.category, foundEntry.definition);
       return {
         id: `kaka-${Date.now()}`,
         sender: 'kaka',
-        text: `Lema "${foundEntry.lemma}" (${foundEntry.posLabel}):\n\n🇮🇩 Arti: ${foundEntry.definition}\n🇬🇧 English: ${foundEntry.definitionEn || '-'}\n🗣️ Pelafalan Fonetik: ${foundEntry.phonetic}\n📜 Aksara Lontara: ${foundEntry.lontara}\n${foundEntry.exampleMandar ? `💬 Contoh Tuturan: "${foundEntry.exampleMandar}"\n` : ''}\nKaka telah mencatat kata ini ke riwayat belajarmu! Ingin Kaka uji dengan contoh kalimat memakai kata ini?`,
+        text: `Lema "${foundEntry.lemma}" (${foundEntry.posLabel}):\n\n🇮🇩 Arti: ${foundEntry.definition}\n🇬🇧 English: ${foundEntry.definitionEn || '-'}\n🗣️ Pelafalan Fonetik: ${foundEntry.phonetic}\n📜 Aksara Lontara: ${foundEntry.lontara}\n${foundEntry.exampleMandar ? `💬 Contoh Tuturan: "${foundEntry.exampleMandar}"\n` : ''}\nKaka telah mencatat kata ini ke riwayat belajarmu! Ingin Kaka uji pemahamanmu tentang kata ini? Ketik saja: "Uji kata ${foundEntry.lemma}"!`,
         matchedEntry: foundEntry,
         timestamp
       };
@@ -399,10 +510,16 @@ export const KakaAI: React.FC<KakaAIProps> = ({
     return {
       id: `kaka-${Date.now()}`,
       sender: 'kaka',
-      text: `Pertanyaan yang sangat menarik! Terkait bahasa dan kebudayaan Mandar, Kaka selalu siap mendampingi belajarmu.\n\nKamu bisa meminta Kaka untuk:\n• Mendiagnosis apakah pemahamanmu sudah tuntas ("Cek pemahamanku")\n• Menguji materi terlemahmu dengan kuis adaptif ("Uji saya")\n• Latihan simulasi percakapan nyata Mandar\n• Membedah makna peribahasa Pappasang dan anatomi perahu Sandeq.\n\nApa yang ingin kamu eksplorasi selanjutnya?`,
+      text: `Pertanyaan yang sangat menarik! Terkait bahasa dan kebudayaan Mandar, Kaka selalu siap mendampingi belajarmu secara mandiri.\n\nKamu bisa meminta Kaka untuk:\n• Mendiagnosis apakah pemahamanmu sudah tuntas ("Cek pemahamanku")\n• Menguji kata tertentu ("Uji pemahamanku tentang lema sandeq")\n• Menilai penjelasan bebasmu ("Coba nilai penjelasan saya: ...")\n• Latihan simulasi percakapan nyata Mandar\n• Membedah makna peribahasa Pappasang dan anatomi perahu Sandeq.\n\nApa yang ingin kamu eksplorasi selanjutnya?`,
       timestamp
     };
   };
+
+  const filteredMasteryWords = useMemo(() => {
+    const list = Object.values(wordMasteries);
+    if (masteryFilter === 'all') return list;
+    return list.filter(w => w.status === masteryFilter);
+  }, [wordMasteries, masteryFilter]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -421,7 +538,7 @@ export const KakaAI: React.FC<KakaAIProps> = ({
             Kaka-AI: Teman Belajar Adaptif Mandar
           </h2>
           <p className="text-mandar-sand-200 text-xs sm:text-sm leading-relaxed">
-            AI yang mengenali pemahaman Anda secara adaptif lewat analisis riwayat belajar, mendiagnosis titik materi yang belum dipahami, dan menguji pemahaman Anda secara interaktif langkah demi langkah.
+            AI cerdas yang mengenali apakah Anda sudah paham materi dengan menganalisis rekam jejak belajar, mengevaluasi penjelasan bebas Anda, dan menguji pemahaman kosakata secara adaptif.
           </p>
 
           {/* Quick Mastery Badge in Header */}
@@ -449,7 +566,7 @@ export const KakaAI: React.FC<KakaAIProps> = ({
         </div>
       </div>
 
-      {/* Sub Tabs Mode: Chat Tutor vs Diagnostic vs Mastery Dashboard vs Study Plan */}
+      {/* Sub Tabs Mode */}
       <div className="flex items-center space-x-2 border-b border-mandar-sand-200 dark:border-slate-800 pb-3 overflow-x-auto">
         <button
           onClick={() => setActiveSubTab('chat')}
@@ -479,6 +596,18 @@ export const KakaAI: React.FC<KakaAIProps> = ({
         </button>
 
         <button
+          onClick={() => setActiveSubTab('evaluator')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all shrink-0 ${
+            activeSubTab === 'evaluator'
+              ? 'bg-mandar-maroon-700 text-white shadow-md'
+              : 'text-stone-700 dark:text-slate-300 hover:bg-mandar-sand-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-mandar-gold-500" />
+          <span>Evaluator Pemahaman Bebas (AI)</span>
+        </button>
+
+        <button
           onClick={() => setActiveSubTab('mastery')}
           className={`flex items-center space-x-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all shrink-0 ${
             activeSubTab === 'mastery'
@@ -487,7 +616,7 @@ export const KakaAI: React.FC<KakaAIProps> = ({
           }`}
         >
           <Brain className="w-4 h-4 text-sky-500" />
-          <span>Dasbor Diagnosis Riwayat</span>
+          <span>Dasbor Riwayat & Penguasaan Kata</span>
         </button>
 
         <button
@@ -499,7 +628,7 @@ export const KakaAI: React.FC<KakaAIProps> = ({
           }`}
         >
           <GraduationCap className="w-4 h-4 text-amber-500" />
-          <span>Rencana Belajar Mandiri</span>
+          <span>Kurikulum & Sertifikat Belajar</span>
         </button>
       </div>
 
@@ -529,7 +658,7 @@ export const KakaAI: React.FC<KakaAIProps> = ({
                     </span>
                   </h3>
                   <p className="text-[11px] text-stone-500 dark:text-slate-400">
-                    Memantau riwayat belajar & diagnosis pemahaman mandiri
+                    Mengenali tingkat pemahaman Anda melalui riwayat pembelajaran
                   </p>
                 </div>
               </div>
@@ -671,7 +800,7 @@ export const KakaAI: React.FC<KakaAIProps> = ({
               {isTyping && (
                 <div className="flex items-center space-x-2 text-stone-400 text-xs italic px-2">
                   <Bot className="w-4 h-4 animate-spin text-mandar-maroon-700" />
-                  <span>Kaka sedang menganalisis & menyusun penjelasan...</span>
+                  <span>Kaka sedang menganalisis & menilai pemahaman Anda...</span>
                 </div>
               )}
 
@@ -702,7 +831,7 @@ export const KakaAI: React.FC<KakaAIProps> = ({
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="Tanyakan lema, minta kuis adaptif, atau ajak Kaka simulasi percakapan..."
+                placeholder="Tanyakan lema, minta kuis adaptif, atau ketik penjelasanmu sendiri untuk dinilai..."
                 className="flex-1 px-4 py-2.5 rounded-xl bg-mandar-sand-50 dark:bg-slate-800 border border-mandar-sand-200 dark:border-slate-700 text-xs sm:text-sm text-stone-900 dark:text-white outline-none focus:border-mandar-maroon-700"
               />
 
@@ -752,9 +881,10 @@ export const KakaAI: React.FC<KakaAIProps> = ({
                     style={{ width: `${learningProfile.overallMasteryPercentage}%` }}
                   />
                 </div>
-                <p className="text-[11px] text-stone-500 dark:text-slate-400">
-                  Tingkat: <strong className="text-stone-800 dark:text-white">{learningProfile.levelTitle}</strong>
-                </p>
+                <div className="flex justify-between text-[11px] text-stone-500 dark:text-slate-400">
+                  <span>Tingkat: <strong className="text-stone-800 dark:text-white">{learningProfile.levelTitle}</strong></span>
+                  <span>{learningProfile.learnedWordsCount} Kata Terpantau</span>
+                </div>
               </div>
 
               {/* Concept Masteries Breakdown */}
@@ -802,7 +932,7 @@ export const KakaAI: React.FC<KakaAIProps> = ({
             <div className="p-4 rounded-3xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 space-y-2 text-xs">
               <span className="font-bold text-amber-900 dark:text-amber-200 flex items-center space-x-1.5">
                 <Lightbulb className="w-4 h-4 text-amber-600" />
-                <span>Catatan Pengamatan Kaka:</span>
+                <span>Catatan Diagnosis Kaka:</span>
               </span>
               <p className="text-amber-800 dark:text-amber-300 leading-relaxed">
                 {learningProfile.aiTutorAdvice}
@@ -960,7 +1090,151 @@ export const KakaAI: React.FC<KakaAIProps> = ({
       )}
 
       {/* ======================================================== */}
-      {/* MODE 3: DASBOR DIAGNOSIS RIWAYAT BELAJAR                 */}
+      {/* MODE 3: EVALUATOR PEMAHAMAN BEBAS (AI FREE-TEXT)         */}
+      {/* ======================================================== */}
+      {activeSubTab === 'evaluator' && (
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-mandar-sand-200 dark:border-slate-800 shadow-sm space-y-6">
+          <div className="space-y-1 border-b border-mandar-sand-200 dark:border-slate-800 pb-5">
+            <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-mandar-gold-100 text-mandar-gold-900 dark:bg-mandar-gold-950 dark:text-mandar-gold-300 text-xs font-bold mb-1">
+              <Sparkles className="w-3.5 h-3.5 text-mandar-gold-500" />
+              <span>Inovasi Utama: AI Cognitive Comprehension Recognizer</span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-stone-900 dark:text-white">
+              Evaluator Pemahaman Bebas Berbasis Bahasa Alami
+            </h3>
+            <p className="text-xs text-stone-500 dark:text-slate-400">
+              Jelaskan konsep atau kosakata Mandar dengan kalimat Anda sendiri. AI Kaka akan membaca penjelasan Anda, menilai apakah Anda sudah benar-benar paham, dan memberikan bimbingan pedagogis secara instan.
+            </p>
+          </div>
+
+          {/* Input Area */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-stone-700 dark:text-slate-300 block">
+                Pilih Konsep / Lema yang Ingin Anda Jelaskan:
+              </label>
+              <select
+                value={evaluatorTopic}
+                onChange={(e) => setEvaluatorTopic(e.target.value)}
+                className="w-full p-3 rounded-2xl bg-mandar-sand-50 dark:bg-slate-800 border border-mandar-sand-300 dark:border-slate-700 text-xs font-semibold text-stone-900 dark:text-white outline-none focus:border-mandar-maroon-700"
+              >
+                <option value="sandeq">Perahu Sandeq (Maritim & Navigasi)</option>
+                <option value="tabe">Sapaan Tabe & Kaidah Alofon [tawe]</option>
+                <option value="saqbe">Lipaq Saqbe (Sutra Tenun & Ragam Motif)</option>
+                <option value="kalindaqdaq">Sastra Kalindaqdaq (Metrum 8-7-8-7)</option>
+                <option value="jepa">Kuliner Jepa & Panau</option>
+              </select>
+
+              <div className="p-4 rounded-2xl bg-mandar-sand-50 dark:bg-slate-800/60 border border-mandar-sand-200 dark:border-slate-700 text-xs text-stone-600 dark:text-slate-300 space-y-1.5">
+                <span className="font-bold text-mandar-maroon-800 dark:text-mandar-gold-400 block">
+                  💡 Tips Menjelaskan:
+                </span>
+                <p className="text-[11px] leading-relaxed">
+                  Sebutkan arti, fungsi, komponen utama, atau aturan penggunaannya. Semakin lengkap rincian yang Anda ketik, semakin akurat penilaian pemahaman AI.
+                </p>
+              </div>
+            </div>
+
+            <div className="md:col-span-2 space-y-3">
+              <label className="text-xs font-bold text-stone-700 dark:text-slate-300 block">
+                Ketikkan Pemahaman Anda Sendiri di Sini:
+              </label>
+              <textarea
+                rows={5}
+                value={evaluatorUserText}
+                onChange={(e) => setEvaluatorUserText(e.target.value)}
+                placeholder="Contoh: Menurut pemahaman saya, perahu Sandeq adalah perahu layar tradisional Mandar yang tercepat di Austronesia, memiliki cadik ganda (baratan dan tada), dan menggunakan layar segitiga sombal tanjaq..."
+                className="w-full p-4 rounded-2xl bg-white dark:bg-slate-800 border border-mandar-sand-300 dark:border-slate-700 text-xs sm:text-sm text-stone-900 dark:text-white outline-none focus:border-mandar-maroon-700 resize-none shadow-inner"
+              />
+
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-stone-400">
+                  {evaluatorUserText.split(/\s+/).filter(Boolean).length} kata terketik
+                </span>
+                <button
+                  onClick={handleRunEvaluator}
+                  disabled={evaluatorLoading || !evaluatorUserText.trim()}
+                  className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-mandar-maroon-700 to-mandar-maroon-800 hover:from-mandar-maroon-800 hover:to-mandar-maroon-900 text-white font-bold text-xs shadow-md transition-all flex items-center space-x-2 disabled:opacity-40"
+                >
+                  <Zap className="w-4 h-4 text-mandar-gold-400" />
+                  <span>{evaluatorLoading ? 'AI Sedang Menganalisis Pemahaman...' : 'Evaluasi Pemahamanku'}</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Evaluation Result Display */}
+          {evaluatorResult && (
+            <div className={`p-6 rounded-3xl border-2 space-y-4 animate-in fade-in ${
+              evaluatorResult.isUnderstood 
+                ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-emerald-400' 
+                : 'bg-amber-50/60 dark:bg-amber-950/40 border-amber-400'
+            }`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-black/10 dark:border-white/10 pb-3">
+                <div className="flex items-center space-x-2">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white ${
+                    evaluatorResult.isUnderstood ? 'bg-emerald-600' : 'bg-amber-600'
+                  }`}>
+                    <Award className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-stone-900 dark:text-white">
+                      Skor Pemahaman AI: {evaluatorResult.score}% ({evaluatorResult.level.toUpperCase()})
+                    </h4>
+                    <span className="text-xs font-semibold text-mandar-maroon-800 dark:text-mandar-gold-400">
+                      {evaluatorResult.kakaReactionMandar}
+                    </span>
+                  </div>
+                </div>
+
+                <span className={`px-3 py-1 rounded-xl text-xs font-bold ${
+                  evaluatorResult.isUnderstood ? 'bg-emerald-200 text-emerald-900' : 'bg-amber-200 text-amber-900'
+                }`}>
+                  {evaluatorResult.isUnderstood ? '✓ PEMAHAMAN TERVERIFIKASI' : '⚠️ PERLU PENGUATAN'}
+                </span>
+              </div>
+
+              <p className="text-xs sm:text-sm text-stone-800 dark:text-slate-200 leading-relaxed font-medium">
+                {evaluatorResult.feedback}
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs">
+                <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800">
+                  <span className="font-bold text-emerald-700 dark:text-emerald-400 block mb-1">
+                    ✓ Poin Pemahaman yang Berhasil Anda Kuasai:
+                  </span>
+                  <ul className="list-disc list-inside space-y-0.5 text-stone-600 dark:text-slate-300 text-[11px]">
+                    {evaluatorResult.keyPointsCovered.map((p, i) => (
+                      <li key={i}>{p}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800">
+                  <span className="font-bold text-amber-700 dark:text-amber-400 block mb-1">
+                    ⚠️ Poin yang Belum Tercover / Perlu Pengulangan:
+                  </span>
+                  <ul className="list-disc list-inside space-y-0.5 text-stone-600 dark:text-slate-300 text-[11px]">
+                    {evaluatorResult.missingPoints.length > 0 ? (
+                      evaluatorResult.missingPoints.map((p, i) => (
+                        <li key={i}>{p}</li>
+                      ))
+                    ) : (
+                      <li>Seluruh aspek penting berhasil Anda jelaskan secara sempurna!</li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODE 4: DASBOR DIAGNOSIS RIWAYAT & PENGUASAAN KATA       */}
       {/* ======================================================== */}
       {activeSubTab === 'mastery' && (
         <div className="space-y-6">
@@ -968,68 +1242,92 @@ export const KakaAI: React.FC<KakaAIProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-mandar-sand-200 dark:border-slate-800 pb-5">
               <div>
                 <h3 className="text-xl sm:text-2xl font-extrabold text-stone-900 dark:text-white">
-                  Dasbor Diagnostik Riwayat & Penguasaan Materi
+                  Dasbor Diagnostik Riwayat & Penguasaan Kosakata
                 </h3>
                 <p className="text-xs text-stone-500 dark:text-slate-400 mt-0.5">
-                  Rekam jejak otomatis dari pencarian lema, latihan suara, kuis, dan interaksi Anda di KADIMA-ID
+                  AI memantau dan menyimpan rekam jejak setiap lema yang Anda buka, dengarkan, dan uji secara mandiri
                 </p>
               </div>
 
-              <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-xs self-start">
-                Tersinkronisasi Otomatis
-              </span>
+              {/* Filter Tabs */}
+              <div className="flex items-center space-x-1 bg-mandar-sand-100 dark:bg-slate-800 p-1 rounded-2xl text-xs font-bold">
+                <button
+                  onClick={() => setMasteryFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl transition-all ${
+                    masteryFilter === 'all' ? 'bg-white dark:bg-slate-900 shadow-sm text-stone-900 dark:text-white' : 'text-stone-500'
+                  }`}
+                >
+                  Semua ({Object.keys(wordMasteries).length})
+                </button>
+                <button
+                  onClick={() => setMasteryFilter('mahir')}
+                  className={`px-3 py-1.5 rounded-xl transition-all ${
+                    masteryFilter === 'mahir' ? 'bg-emerald-600 text-white shadow-sm' : 'text-stone-500'
+                  }`}
+                >
+                  Mahir
+                </button>
+                <button
+                  onClick={() => setMasteryFilter('sedang_belajar')}
+                  className={`px-3 py-1.5 rounded-xl transition-all ${
+                    masteryFilter === 'sedang_belajar' ? 'bg-amber-600 text-white shadow-sm' : 'text-stone-500'
+                  }`}
+                >
+                  Belajar
+                </button>
+                <button
+                  onClick={() => setMasteryFilter('belum_paham')}
+                  className={`px-3 py-1.5 rounded-xl transition-all ${
+                    masteryFilter === 'belum_paham' ? 'bg-rose-600 text-white shadow-sm' : 'text-stone-500'
+                  }`}
+                >
+                  Perlu Ulang
+                </button>
+              </div>
             </div>
 
-            {/* Detailed Concept Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {learningProfile.concepts.map((concept) => (
+            {/* Individual Word Mastery Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {filteredMasteryWords.map((word) => (
                 <div
-                  key={concept.id}
-                  className="p-5 rounded-2xl bg-mandar-sand-50/60 dark:bg-slate-800/60 border border-mandar-sand-200 dark:border-slate-700 space-y-3"
+                  key={word.cleanLemma}
+                  className="p-4 rounded-2xl bg-mandar-sand-50/60 dark:bg-slate-800/60 border border-mandar-sand-200 dark:border-slate-700 space-y-2 hover:border-mandar-maroon-500 transition-colors"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-stone-900 dark:text-white">
-                      {concept.name}
+                    <span className="font-extrabold text-sm text-stone-900 dark:text-white">
+                      {word.lemma}
                     </span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      concept.status === 'mahir' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' :
-                      concept.status === 'paham' ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300' :
-                      concept.status === 'sedang_belajar' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' :
+                      word.status === 'mahir' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' :
+                      word.status === 'paham' ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300' :
+                      word.status === 'sedang_belajar' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' :
                       'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
                     }`}>
-                      {concept.status.replace('_', ' ').toUpperCase()} ({concept.masteryPercentage}%)
+                      {word.comprehensionScore}% ({word.status.toUpperCase()})
                     </span>
                   </div>
 
-                  <p className="text-xs text-stone-600 dark:text-slate-300">
-                    {concept.description}
+                  <p className="text-xs text-stone-500 dark:text-slate-400 line-clamp-2">
+                    {word.definition || 'Kosakata Mandar aktif dalam kamus'}
                   </p>
 
-                  <div className="w-full h-2 bg-mandar-sand-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div className="w-full h-1.5 bg-mandar-sand-200 dark:bg-slate-700 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-mandar-maroon-700 dark:bg-mandar-gold-500 rounded-full"
-                      style={{ width: `${concept.masteryPercentage}%` }}
+                      className={`h-full rounded-full ${
+                        word.comprehensionScore >= 80 ? 'bg-emerald-500' : word.comprehensionScore >= 50 ? 'bg-amber-500' : 'bg-rose-500'
+                      }`}
+                      style={{ width: `${word.comprehensionScore}%` }}
                     />
                   </div>
 
-                  {/* Weak & Strong points */}
-                  <div className="grid grid-cols-2 gap-2 pt-2 text-[11px] border-t border-mandar-sand-200 dark:border-slate-700">
-                    <div>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400 block mb-0.5">
-                        ✓ Sudah Dikuasai:
-                      </span>
-                      <p className="text-stone-500 dark:text-slate-400">
-                        {concept.strongPoints?.join(', ') || 'Kosakata dasar terverifikasi'}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="font-bold text-amber-600 dark:text-amber-400 block mb-0.5">
-                        ⚠️ Titik Perlu Penguatan:
-                      </span>
-                      <p className="text-stone-500 dark:text-slate-400">
-                        {concept.weakPoints?.join(', ') || 'Perlu latihan lebih banyak'}
-                      </p>
-                    </div>
+                  <div className="flex items-center justify-between pt-1 text-[10px] text-stone-400">
+                    <span>Dilihat {word.viewCount}x • Didengar {word.listenCount}x</span>
+                    <button
+                      onClick={() => triggerDiagnosticCheck(undefined, word.cleanLemma)}
+                      className="text-mandar-maroon-700 dark:text-mandar-gold-400 font-bold hover:underline"
+                    >
+                      Uji Lema Ini →
+                    </button>
                   </div>
                 </div>
               ))}
@@ -1038,7 +1336,7 @@ export const KakaAI: React.FC<KakaAIProps> = ({
             {/* Recent Log List */}
             <div className="space-y-3 pt-3">
               <h4 className="font-bold text-xs uppercase tracking-wider text-stone-500 dark:text-slate-400">
-                Log 10 Aktivitas Pembelajaran Terakhir Anda:
+                Log Aktivitas Pembelajaran Terakhir Anda:
               </h4>
 
               <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -1074,78 +1372,153 @@ export const KakaAI: React.FC<KakaAIProps> = ({
       )}
 
       {/* ======================================================== */}
-      {/* MODE 4: RENCANA BELAJAR MANDIRI (PERSONALIZED CURRICULUM) */}
+      {/* MODE 5: RENCANA BELAJAR MANDIRI & SERTIFIKAT             */}
       {/* ======================================================== */}
       {activeSubTab === 'study_plan' && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-mandar-sand-200 dark:border-slate-800 shadow-sm space-y-6">
-          <div className="space-y-1 border-b border-mandar-sand-200 dark:border-slate-800 pb-5">
-            <h3 className="text-xl sm:text-2xl font-extrabold text-stone-900 dark:text-white">
-              Kurikulum Mandiri Rekomendasi Kaka-AI
-            </h3>
-            <p className="text-xs text-stone-500 dark:text-slate-400">
-              Disusun khusus untuk Anda berdasarkan materi yang teridentifikasi belum tuntas pada riwayat belajar
-            </p>
-          </div>
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-mandar-sand-200 dark:border-slate-800 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-mandar-sand-200 dark:border-slate-800 pb-5">
+              <div>
+                <h3 className="text-xl sm:text-2xl font-extrabold text-stone-900 dark:text-white">
+                  Kurikulum Mandiri & Sertifikat Pemahaman
+                </h3>
+                <p className="text-xs text-stone-500 dark:text-slate-400">
+                  Disusun khusus untuk Anda berdasarkan materi yang teridentifikasi belum tuntas pada riwayat belajar
+                </p>
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            
-            {/* Step 1 */}
-            <div className="p-5 rounded-3xl bg-mandar-sand-50 dark:bg-slate-800/60 border border-mandar-sand-200 dark:border-slate-700 space-y-3">
-              <span className="w-7 h-7 rounded-full bg-mandar-maroon-700 text-white font-bold text-xs flex items-center justify-center">
-                1
-              </span>
-              <h4 className="font-bold text-sm text-stone-900 dark:text-white">
-                Fokus Penguatan Titik Lemah: {learningProfile.weakestConcepts[0]?.name.split(' & ')[0]}
-              </h4>
-              <p className="text-xs text-stone-600 dark:text-slate-300 leading-relaxed">
-                Tingkat pemahaman saat ini {learningProfile.weakestConcepts[0]?.masteryPercentage}%. Pelajari kembali kaidah utama di laboratorium terkait.
-              </p>
               <button
-                onClick={() => onGoToTab('fonologi', 'tabe')}
-                className="w-full py-2 rounded-xl bg-white dark:bg-slate-900 border border-mandar-sand-300 dark:border-slate-700 hover:border-mandar-maroon-600 text-stone-800 dark:text-slate-200 text-xs font-bold transition-colors"
+                onClick={() => setIsCertificateView(!isCertificateView)}
+                className="px-4 py-2 rounded-xl bg-mandar-maroon-700 hover:bg-mandar-maroon-800 text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm transition-colors self-start"
               >
-                Buka Lab Fonologi →
+                <Award className="w-4 h-4 text-mandar-gold-400" />
+                <span>{isCertificateView ? 'Tutup Sertifikat' : 'Lihat Sertifikat Pemahaman Mandiri'}</span>
               </button>
             </div>
 
-            {/* Step 2 */}
-            <div className="p-5 rounded-3xl bg-mandar-sand-50 dark:bg-slate-800/60 border border-mandar-sand-200 dark:border-slate-700 space-y-3">
-              <span className="w-7 h-7 rounded-full bg-mandar-maroon-700 text-white font-bold text-xs flex items-center justify-center">
-                2
-              </span>
-              <h4 className="font-bold text-sm text-stone-900 dark:text-white">
-                Latihan Praktik Vokal & Artikulasi Mandar
-              </h4>
-              <p className="text-xs text-stone-600 dark:text-slate-300 leading-relaxed">
-                Uji rekaman pelafalan kata beralofon seperti [tawe] dan [madzondzong] di fitur Evaluator Suara.
-              </p>
-              <button
-                onClick={() => onGoToTab('evaluator')}
-                className="w-full py-2 rounded-xl bg-white dark:bg-slate-900 border border-mandar-sand-300 dark:border-slate-700 hover:border-mandar-maroon-600 text-stone-800 dark:text-slate-200 text-xs font-bold transition-colors"
-              >
-                Uji Pelafalan Mikrofon →
-              </button>
-            </div>
+            {/* Certificate View */}
+            {isCertificateView && (
+              <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-br from-amber-50 via-white to-amber-100/60 dark:from-slate-900 dark:via-slate-850 dark:to-slate-900 border-4 border-mandar-gold-500 shadow-2xl relative overflow-hidden space-y-6 text-center">
+                <div className="absolute top-4 left-4 font-lontara text-6xl text-mandar-gold-400/20 pointer-events-none">
+                  ᨀᨉᨗᨆ
+                </div>
+                <div className="absolute bottom-4 right-4 font-lontara text-6xl text-mandar-gold-400/20 pointer-events-none">
+                  ᨆᨊᨉ
+                </div>
 
-            {/* Step 3 */}
-            <div className="p-5 rounded-3xl bg-mandar-sand-50 dark:bg-slate-800/60 border border-mandar-sand-200 dark:border-slate-700 space-y-3">
-              <span className="w-7 h-7 rounded-full bg-mandar-maroon-700 text-white font-bold text-xs flex items-center justify-center">
-                3
-              </span>
-              <h4 className="font-bold text-sm text-stone-900 dark:text-white">
-                Simulasi Uji Socratic Bersama Kaka-AI
-              </h4>
-              <p className="text-xs text-stone-600 dark:text-slate-300 leading-relaxed">
-                Jawab 1 tantangan kuis diagnostik yang disesuaikan secara otomatis oleh AI untuk mengecek pemahamanmu.
-              </p>
-              <button
-                onClick={() => triggerDiagnosticCheck()}
-                className="w-full py-2 rounded-xl bg-mandar-maroon-700 hover:bg-mandar-maroon-800 text-white text-xs font-bold transition-colors shadow-sm"
-              >
-                Mulai Uji Sekarang 🎯
-              </button>
-            </div>
+                <div className="max-w-xl mx-auto space-y-2">
+                  <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-mandar-maroon-800 text-mandar-gold-300 text-xs font-bold uppercase tracking-widest">
+                    <span>Kementerian Kebudayaan RI • BudayaGo 2025</span>
+                  </div>
+                  <h3 className="text-2xl sm:text-3xl font-black text-mandar-maroon-900 dark:text-mandar-gold-400 tracking-tight font-serif">
+                    SERTIFIKAT PEMAHAMAN MANDIRI BAHASA MANDAR
+                  </h3>
+                  <p className="text-xs text-stone-600 dark:text-slate-300 font-sans">
+                    Diberikan atas dedikasi dan penguasaan leksikografi, fonologi, dan sastra maritim Mandar
+                  </p>
+                </div>
 
+                <div className="py-4 border-y border-mandar-gold-300 dark:border-mandar-gold-800/60 max-w-lg mx-auto space-y-2">
+                  <input
+                    type="text"
+                    value={studentName}
+                    onChange={(e) => setStudentName(e.target.value)}
+                    className="text-center font-bold text-xl sm:text-2xl text-stone-900 dark:text-white bg-transparent border-b border-dashed border-mandar-maroon-400 outline-none w-full pb-1"
+                    title="Klik untuk mengubah nama di sertifikat"
+                  />
+                  <p className="text-xs text-stone-500 dark:text-slate-400">
+                    Gelar Capaian Budaya: <strong className="text-mandar-maroon-800 dark:text-mandar-gold-400">{learningProfile.levelTitle}</strong>
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 max-w-md mx-auto text-xs">
+                  <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-800 border border-mandar-gold-200">
+                    <span className="text-[10px] text-stone-400 block">Indeks Pemahaman</span>
+                    <strong className="text-lg text-emerald-600">{learningProfile.overallMasteryPercentage}%</strong>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-800 border border-mandar-gold-200">
+                    <span className="text-[10px] text-stone-400 block">Kosakata Dikuasai</span>
+                    <strong className="text-lg text-mandar-maroon-700 dark:text-mandar-gold-400">{learningProfile.learnedWordsCount} Kata</strong>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-800 border border-mandar-gold-200">
+                    <span className="text-[10px] text-stone-400 block">Streak Belajar</span>
+                    <strong className="text-lg text-amber-600">{learningProfile.learningStreakDays} Hari</strong>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex items-center justify-center space-x-3 text-xs">
+                  <button
+                    onClick={() => window.print()}
+                    className="px-5 py-2 rounded-xl bg-stone-900 text-white font-bold flex items-center space-x-1.5 shadow"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Cetak / Simpan PDF</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 3 Steps Curriculum */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              
+              {/* Step 1 */}
+              <div className="p-5 rounded-3xl bg-mandar-sand-50 dark:bg-slate-800/60 border border-mandar-sand-200 dark:border-slate-700 space-y-3">
+                <span className="w-7 h-7 rounded-full bg-mandar-maroon-700 text-white font-bold text-xs flex items-center justify-center">
+                  1
+                </span>
+                <h4 className="font-bold text-sm text-stone-900 dark:text-white">
+                  Fokus Penguatan Titik Lemah: {learningProfile.weakestConcepts[0]?.name.split(' & ')[0]}
+                </h4>
+                <p className="text-xs text-stone-600 dark:text-slate-300 leading-relaxed">
+                  Tingkat pemahaman saat ini {learningProfile.weakestConcepts[0]?.masteryPercentage}%. Pelajari kembali kaidah utama di laboratorium terkait.
+                </p>
+                <button
+                  onClick={() => onGoToTab('fonologi', 'tabe')}
+                  className="w-full py-2 rounded-xl bg-white dark:bg-slate-900 border border-mandar-sand-300 dark:border-slate-700 hover:border-mandar-maroon-600 text-stone-800 dark:text-slate-200 text-xs font-bold transition-colors"
+                >
+                  Buka Lab Fonologi →
+                </button>
+              </div>
+
+              {/* Step 2 */}
+              <div className="p-5 rounded-3xl bg-mandar-sand-50 dark:bg-slate-800/60 border border-mandar-sand-200 dark:border-slate-700 space-y-3">
+                <span className="w-7 h-7 rounded-full bg-mandar-maroon-700 text-white font-bold text-xs flex items-center justify-center">
+                  2
+                </span>
+                <h4 className="font-bold text-sm text-stone-900 dark:text-white">
+                  Latihan Praktik Vokal & Artikulasi Mandar
+                </h4>
+                <p className="text-xs text-stone-600 dark:text-slate-300 leading-relaxed">
+                  Uji rekaman pelafalan kata beralofon seperti [tawe] dan [madzondzong] di fitur Evaluator Suara.
+                </p>
+                <button
+                  onClick={() => onGoToTab('evaluator')}
+                  className="w-full py-2 rounded-xl bg-white dark:bg-slate-900 border border-mandar-sand-300 dark:border-slate-700 hover:border-mandar-maroon-600 text-stone-800 dark:text-slate-200 text-xs font-bold transition-colors"
+                >
+                  Uji Pelafalan Mikrofon →
+                </button>
+              </div>
+
+              {/* Step 3 */}
+              <div className="p-5 rounded-3xl bg-mandar-sand-50 dark:bg-slate-800/60 border border-mandar-sand-200 dark:border-slate-700 space-y-3">
+                <span className="w-7 h-7 rounded-full bg-mandar-maroon-700 text-white font-bold text-xs flex items-center justify-center">
+                  3
+                </span>
+                <h4 className="font-bold text-sm text-stone-900 dark:text-white">
+                  Simulasi Uji Socratic Bersama Kaka-AI
+                </h4>
+                <p className="text-xs text-stone-600 dark:text-slate-300 leading-relaxed">
+                  Jawab 1 tantangan kuis diagnostik yang disesuaikan secara otomatis oleh AI untuk mengecek pemahamanmu.
+                </p>
+                <button
+                  onClick={() => triggerDiagnosticCheck()}
+                  className="w-full py-2 rounded-xl bg-mandar-maroon-700 hover:bg-mandar-maroon-800 text-white text-xs font-bold transition-colors shadow-sm"
+                >
+                  Mulai Uji Sekarang 🎯
+                </button>
+              </div>
+
+            </div>
           </div>
         </div>
       )}

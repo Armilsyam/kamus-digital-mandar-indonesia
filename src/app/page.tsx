@@ -58,7 +58,7 @@ import { CelestialNavigation } from '@/components/CelestialNavigation';
 import { PronunciationEvaluator } from '@/components/PronunciationEvaluator';
 import { ApiDataExport } from '@/components/ApiDataExport';
 import { LearningHubWidget } from '@/components/LearningHubWidget';
-import { recordLearningActivity } from '@/lib/learningTracker';
+import { recordLearningActivity, getAllWordMasteries, WordMasteryRecord } from '@/lib/learningTracker';
 
 import rawDictionary from '@/data/mandar_dictionary.json';
 
@@ -113,9 +113,18 @@ export default function Home() {
 
   // Detail Modal state
   const [selectedEntry, setSelectedEntry] = useState<DictionaryEntry | null>(null);
+  const [wordMasteries, setWordMasteries] = useState<Record<string, WordMasteryRecord>>({});
 
   // Sub-tab navigation parameter (e.g. from modal to lab or Kaka-AI)
   const [labWord, setLabWord] = useState('madondong');
+
+  const refreshWordMasteries = useCallback(() => {
+    setWordMasteries(getAllWordMasteries());
+  }, []);
+
+  useEffect(() => {
+    refreshWordMasteries();
+  }, [refreshWordMasteries, activeTab]);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -509,6 +518,8 @@ export default function Home() {
                     onSelectEntry={(e) => handleSelectEntry(e)}
                     onFilterRoot={handleFilterRoot}
                     soundEnabled={soundEnabled}
+                    masteryRecord={wordMasteries[entry.cleanLemma.toLowerCase()]}
+                    onTestComprehension={(e) => handleGoToTab('kaka', `Uji pemahamanku tentang lema '${e.lemma}'`)}
                   />
                 ))}
               </div>
@@ -754,7 +765,10 @@ export default function Home() {
       {/* Detail Modal */}
       <EntryDetailModal
         entry={selectedEntry}
-        onClose={() => setSelectedEntry(null)}
+        onClose={() => {
+          setSelectedEntry(null);
+          refreshWordMasteries();
+        }}
         isBookmarked={selectedEntry ? bookmarkedIds.has(selectedEntry.id) : false}
         onToggleBookmark={toggleBookmark}
         soundEnabled={soundEnabled}

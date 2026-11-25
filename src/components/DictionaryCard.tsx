@@ -10,9 +10,13 @@ import {
   ExternalLink, 
   Sparkles,
   Globe2,
-  Languages
+  Languages,
+  Brain,
+  Award,
+  CheckCircle2
 } from 'lucide-react';
 import { speakText } from '@/lib/audio';
+import { WordMasteryRecord, recordWordInteraction } from '@/lib/learningTracker';
 
 export interface DictionaryEntry {
   id: string;
@@ -39,6 +43,8 @@ interface DictionaryCardProps {
   onSelectEntry: (entry: DictionaryEntry) => void;
   onFilterRoot: (root: string) => void;
   soundEnabled: boolean;
+  masteryRecord?: WordMasteryRecord;
+  onTestComprehension?: (entry: DictionaryEntry) => void;
 }
 
 const POS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -61,6 +67,8 @@ export const DictionaryCard: React.FC<DictionaryCardProps> = ({
   onSelectEntry,
   onFilterRoot,
   soundEnabled,
+  masteryRecord,
+  onTestComprehension,
 }) => {
   const [isPlayingMandar, setIsPlayingMandar] = useState(false);
   const [isPlayingIndo, setIsPlayingIndo] = useState(false);
@@ -76,7 +84,10 @@ export const DictionaryCard: React.FC<DictionaryCardProps> = ({
     e.stopPropagation();
     if (!soundEnabled) return;
     setIsPlayingMandar(true);
-    // Lafalkan lema dan jika ada kalimat contoh, lafalkan kalimat panjangnya!
+    
+    // Catat ke riwayat belajar mandiri
+    recordWordInteraction(entry.cleanLemma, 'listen', entry.category, entry.definition);
+
     const textToSpeak = entry.exampleMandar ? `${entry.lemma}. ${entry.exampleMandar}` : entry.lemma;
     speakText(textToSpeak, { 
       lang: 'mandar', 
@@ -125,6 +136,21 @@ export const DictionaryCard: React.FC<DictionaryCardProps> = ({
               <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-mandar-gold-50 dark:bg-mandar-gold-950/60 text-mandar-gold-800 dark:text-mandar-gold-300 border border-mandar-gold-200 dark:border-mandar-gold-800 flex items-center space-x-1">
                 <Sparkles className="w-3 h-3 text-mandar-gold-500" />
                 <span>Alofon</span>
+              </span>
+            )}
+            
+            {/* Live Cognitive Mastery Badge */}
+            {masteryRecord && (
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center space-x-1 ${
+                masteryRecord.comprehensionScore >= 80
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300'
+                  : masteryRecord.comprehensionScore >= 45
+                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300'
+                  : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300'
+              }`}>
+                <span>
+                  {masteryRecord.comprehensionScore >= 80 ? '🟢 Mahir' : masteryRecord.comprehensionScore >= 45 ? '🟡 Dipelajari' : '🔴 Perlu Ulang'} ({masteryRecord.comprehensionScore}%)
+                </span>
               </span>
             )}
           </div>
@@ -228,8 +254,22 @@ export const DictionaryCard: React.FC<DictionaryCardProps> = ({
           <span className="text-[10px] text-stone-400">Hal. {entry.page}</span>
         </div>
 
-        {/* Audio Action Buttons: Mandar & Indonesia */}
+        {/* Audio Action Buttons & Interactive AI Comprehension Test Button */}
         <div className="flex items-center space-x-1.5">
+          {onTestComprehension && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onTestComprehension(entry);
+              }}
+              className="flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-bold bg-mandar-gold-100 hover:bg-mandar-gold-200 text-mandar-gold-950 dark:bg-mandar-gold-950/80 dark:text-mandar-gold-300 border border-mandar-gold-300 dark:border-mandar-gold-800 transition-colors"
+              title="Uji Pemahaman Kata Ini Bersama Teman Belajar Kaka-AI"
+            >
+              <Brain className="w-3.5 h-3.5 text-mandar-maroon-700 dark:text-mandar-gold-400" />
+              <span className="text-[10px]">Uji AI</span>
+            </button>
+          )}
+
           <button
             onClick={handlePlayMandar}
             className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
