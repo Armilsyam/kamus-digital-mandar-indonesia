@@ -14,6 +14,7 @@ import {
   Award
 } from 'lucide-react';
 import { speakText } from '@/lib/audio';
+import { recordLearningActivity } from '@/lib/learningTracker';
 
 export interface PracticeWordPhonetic {
   id: string;
@@ -203,6 +204,15 @@ export const PronunciationEvaluator: React.FC = () => {
     // Calculate realistic pronunciation feedback based on phonetic rules
     const randomScore = Math.floor(88 + Math.random() * 11); // 88 - 98%
     setScore(randomScore);
+
+    recordLearningActivity({
+      type: 'pronunciation',
+      title: `Latihan Suara: ${selectedWord.word}`,
+      detail: `Skor artikulasi fonetik: ${randomScore}% (${selectedWord.phoneticChallenge})`,
+      score: randomScore,
+      masteryImpact: 'high',
+      category: 'fonologi'
+    });
 
     const notes = [
       `Artikulasi fonem dasar lema "${selectedWord.word}" terdeteksi sangat jelas.`,

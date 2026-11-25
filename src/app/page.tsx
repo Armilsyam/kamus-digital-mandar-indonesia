@@ -58,6 +58,7 @@ import { CelestialNavigation } from '@/components/CelestialNavigation';
 import { PronunciationEvaluator } from '@/components/PronunciationEvaluator';
 import { ApiDataExport } from '@/components/ApiDataExport';
 import { LearningHubWidget } from '@/components/LearningHubWidget';
+import { recordLearningActivity } from '@/lib/learningTracker';
 
 import rawDictionary from '@/data/mandar_dictionary.json';
 
@@ -162,6 +163,13 @@ export default function Home() {
       const list = saved ? JSON.parse(saved) as string[] : [];
       const updated = [clean, ...list.filter(item => item !== clean)].slice(0, 20);
       localStorage.setItem('kadima_search_history', JSON.stringify(updated));
+      recordLearningActivity({
+        type: 'search',
+        title: `Pencarian Lema: ${clean}`,
+        detail: `Mencari kosakata di kamus trilingual`,
+        masteryImpact: 'low',
+        category: 'kosakata'
+      });
     } catch {}
   }, []);
 
@@ -249,9 +257,20 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleSelectEntry = (entry: DictionaryEntry) => {
+    setSelectedEntry(entry);
+    recordLearningActivity({
+      type: 'modal_view',
+      title: `Eksplorasi Lema: ${entry.lemma}`,
+      detail: `${entry.posLabel} - ${entry.definition.slice(0, 45)}...`,
+      masteryImpact: 'medium',
+      category: entry.category.includes('Maritim') || entry.category.includes('Budaya') ? 'budaya' : 'kosakata'
+    });
+  };
+
   const handleRandomWord = () => {
     const randomIdx = Math.floor(Math.random() * ALL_ENTRIES.length);
-    setSelectedEntry(ALL_ENTRIES[randomIdx]);
+    handleSelectEntry(ALL_ENTRIES[randomIdx]);
   };
 
   const handleSearchFromHub = (word: string) => {
@@ -487,7 +506,7 @@ export default function Home() {
                     entry={entry}
                     isBookmarked={bookmarkedIds.has(entry.id)}
                     onToggleBookmark={toggleBookmark}
-                    onSelectEntry={(e) => setSelectedEntry(e)}
+                    onSelectEntry={(e) => handleSelectEntry(e)}
                     onFilterRoot={handleFilterRoot}
                     soundEnabled={soundEnabled}
                   />

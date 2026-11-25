@@ -57,7 +57,7 @@ export const ALL_FEATURES: NavFeature[] = [
   { id: 'kamus', label: 'Kamus Trilingual (MDR • IDN • ENG)', shortLabel: 'Kamus', icon: BookOpen, category: 'leksikon' },
   { id: 'terjemah', label: 'Penerjemah Kalimat Dwiarah', shortLabel: 'Penerjemah', icon: Languages, category: 'leksikon', isNew: true },
   { id: 'frasa', label: 'Buku Frasa & Percakapan Tematis', shortLabel: 'Buku Frasa', icon: BookMarked, category: 'leksikon', isNew: true },
-  { id: 'kaka', label: 'Asisten AI "Kaka-AI"', shortLabel: 'Kaka-AI', icon: Bot, category: 'leksikon', badge: 'AI' },
+  { id: 'kaka', label: 'Asisten AI & Teman Belajar Adaptif', shortLabel: 'Kaka-AI Tutor', icon: Bot, category: 'leksikon', badge: 'AI Adaptif' },
   { id: 'tts', label: 'Studio Pelafalan Suara TTS', shortLabel: 'Studio Suara', icon: Volume2, category: 'leksikon' },
 
   // 2. LINGUISTIK & AKSARA
@@ -136,7 +136,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const primaryTabs = [
     { id: 'kamus', label: 'Kamus', icon: BookOpen },
     { id: 'terjemah', label: 'Penerjemah', icon: Languages, isNew: true },
-    { id: 'kaka', label: 'Kaka-AI', icon: Bot, badge: 'AI' },
+    { id: 'kaka', label: 'Kaka-AI Tutor', icon: Bot, badge: 'Adaptif' },
     { id: 'kalindaqdaq', label: 'Kalindaqdaq', icon: Feather, isNew: true },
     { id: 'dialek', label: 'Peta Dialek', icon: MapPin, isNew: true },
     { id: 'frasa', label: 'Buku Frasa', icon: BookMarked, isNew: true },

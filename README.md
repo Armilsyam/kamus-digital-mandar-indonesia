@@ -96,7 +96,7 @@ Bahasa Mandar adalah salah satu bahasa daerah Austronesia yang kaya akan nilai h
 ### 🏛️ 10 Fitur Inti Platform (Existing Features):
 
 1. **Kamus 3 Bahasa Sekaligus (Mandar • Indonesia • English)**: 4.443 entri lema lengkap dengan Aksara Lontara, fonetik IPA, filter kelas kata, dan abjad A–W.
-2. **Asisten AI "Kaka-AI"**: Percakapan kecerdasan buatan berbasis pengetahuan kebudayaan Mandar, fonologi, dan sastra Kalindaqdaq.
+2. **Kaka-AI: Teman Belajar Mandiri & Diagnostik Pemahaman Adaptif**: AI cerdas interaktif yang menganalisis rekam jejak dan riwayat belajar pengguna, mendeteksi konsep mana yang sudah dikuasai vs masih lemah (fonologi, alofon, Lontara, morfologi, sastra), serta menguji pemahaman pengguna secara interaktif lewat *Socratic diagnostic check* dan simulasi percakapan.
 3. **Studio Suara Multi-Fungsi (TTS Kalimat Panjang)**: Pelafalan alami dengan transformasi alofon dan kontrol tempo suara.
 4. **Laboratorium Fonologi & Alofon**: Simulator alofon intervokalik dan kalkulator asimilasi morfofonemik (*Tabel III*).
 5. **Transliterasi Aksara Lontara Mandar**: Konversi dua arah Latin ⇄ Lontara (Unicode U+1A00–U+1A1F) dan keyboard virtual.

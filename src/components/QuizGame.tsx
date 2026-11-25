@@ -17,6 +17,7 @@ import {
 import confetti from 'canvas-confetti';
 import cultureData from '@/data/mandar_culture.json';
 import { speakMandar } from '@/lib/audio';
+import { recordLearningActivity } from '@/lib/learningTracker';
 
 interface QuizGameProps {
   soundEnabled: boolean;
@@ -68,6 +69,15 @@ export const QuizGame: React.FC<QuizGameProps> = ({ soundEnabled }) => {
       setIsAnswered(false);
     } else {
       setIsFinished(true);
+      const totalScorePct = Math.round((score / questions.length) * 100);
+      recordLearningActivity({
+        type: 'quiz',
+        title: `Kuis Gamifikasi (${totalScorePct}%)`,
+        detail: `Menuntaskan ${questions.length} soal kuis budaya & leksikon`,
+        score: totalScorePct,
+        masteryImpact: 'high',
+        category: 'budaya'
+      });
       if (typeof window !== 'undefined') {
         confetti({
           particleCount: 100,
