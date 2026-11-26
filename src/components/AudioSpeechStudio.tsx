@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Volume2, 
   VolumeX, 
@@ -10,35 +10,66 @@ import {
   Languages, 
   Sliders, 
   Activity, 
-  RefreshCw,
   UserCheck,
   BookOpen,
-  Info
+  Info,
+  Mic,
+  MicOff,
+  Split,
+  SpellCheck,
+  AlignLeft,
+  CheckCircle2,
+  FileText
 } from 'lucide-react';
 import { 
   speakText, 
+  speakWordByWord,
+  speakSyllables,
   stopSpeaking, 
-  isSpeaking, 
   preprocessMandarForTTS,
-  getMandarPhoneticRulesExplanation 
+  preprocessMixedForTTS,
+  getMandarPhoneticRulesExplanation,
+  startSpeechListening,
+  stopSpeechListening,
+  isSpeechRecognitionSupported 
 } from '@/lib/audio';
+import { 
+  detectLanguageAndAnalyze, 
+  segmentMixedSentence, 
+  hyphenateMandarSyllables 
+} from '@/lib/languageDetector';
 
 export const AudioSpeechStudio: React.FC = () => {
   const [inputText, setInputText] = useState(
-    "Pitu buttu malindui, pitu ponnana ayu, purai accur nilanda paqmai sau di sasiq malambiq."
+    "Tabe itaq, saya mau belajar bahasa Mandar hari ini sau di sasiq malambiq."
   );
-  const [selectedLang, setSelectedLang] = useState<'mandar' | 'indonesia' | 'english'>('mandar');
+  const [selectedLang, setSelectedLang] = useState<'mandar' | 'indonesia' | 'mixed' | 'english'>('mixed');
   const [voiceProfile, setVoiceProfile] = useState<'indoq' | 'kaka' | 'amboq'>('indoq');
   const [speechRate, setSpeechRate] = useState<number>(0.88);
   const [speechPitch, setSpeechPitch] = useState<number>(1.16);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [playMode, setPlayMode] = useState<'full' | 'word' | 'syllable'>('full');
+  const [activeWordIdx, setActiveWordIdx] = useState<number>(-1);
+  const [activeSylIdx, setActiveSylIdx] = useState<number>(-1);
+  const [isListening, setIsListening] = useState<boolean>(false);
   const [showRulesExplanation, setShowRulesExplanation] = useState<boolean>(false);
 
   const phoneticRules = getMandarPhoneticRulesExplanation();
+  const recognitionSupported = isSpeechRecognitionSupported();
+
+  // Analisis Bahasa Real-Time (Mandar vs Indonesia vs Campuran & Harfiah)
+  const languageAnalysis = useMemo(() => {
+    return detectLanguageAndAnalyze(inputText);
+  }, [inputText]);
 
   const PRESETS = [
     {
-      label: "Mandar: Kerinduan & Laut",
+      label: "Campuran (Code-Switching): Mandar + Indonesia",
+      lang: 'mixed' as const,
+      text: "Tabe itaq, saya mau belajar bahasa Mandar hari ini sau di sasiq malambiq."
+    },
+    {
+      label: "Mandar Otentik: Kerinduan & Laut",
       lang: 'mandar' as const,
       text: "Pitu buttu malindui, pitu ponnana ayu, purai accur nilanda paqmai sau di sasiq malambiq."
     },
@@ -58,19 +89,9 @@ export const AudioSpeechStudio: React.FC = () => {
       text: "Mellamun bomboq mappasombo litaq, daqa muleppas siriqmu tandanau di aheraq."
     },
     {
-      label: "Mandar: Kalindaqdaq Cinta",
-      lang: 'mandar' as const,
-      text: "Mellongeq mepasorongan, pindang pura tinindo, taqe-taqe na balimbing, lappaq tinindo tulu."
-    },
-    {
       label: "Indonesia: Narasi Perahu Sandeq",
       lang: 'indonesia' as const,
       text: "Perahu Sandeq merupakan mahakarya maritim suku Mandar dengan layar segitiga gunting yang mampu melaju kencang membelah ombak Selat Makassar."
-    },
-    {
-      label: "English: Cultural Narrative",
-      lang: 'english' as const,
-      text: "The Sandeq is a traditional double-outrigger sailboat from West Sulawesi, celebrated as the fastest non-motorized vessel across the Indonesian archipelago."
     }
   ];
 
@@ -92,30 +113,93 @@ export const AudioSpeechStudio: React.FC = () => {
     if (!inputText.trim()) return;
 
     if (isPlaying) {
-      stopSpeaking();
-      setIsPlaying(false);
+      handleStop();
       return;
     }
 
     setIsPlaying(true);
-    speakText(inputText, {
-      lang: selectedLang,
-      gender: voiceProfile === 'amboq' ? 'male' : 'female',
+    setActiveWordIdx(-1);
+    setActiveSylIdx(-1);
+
+    const commonOptions = {
+      gender: voiceProfile === 'amboq' ? ('male' as const) : ('female' as const),
       voiceProfile: voiceProfile,
       rate: speechRate,
       pitch: speechPitch,
       onStart: () => setIsPlaying(true),
-      onEnd: () => setIsPlaying(false),
-      onError: () => setIsPlaying(false)
-    });
+      onEnd: () => {
+        setIsPlaying(false);
+        setActiveWordIdx(-1);
+        setActiveSylIdx(-1);
+      },
+      onError: () => {
+        setIsPlaying(false);
+        setActiveWordIdx(-1);
+        setActiveSylIdx(-1);
+      }
+    };
+
+    if (playMode === 'word') {
+      // Pelafalan Kata per Kata
+      speakWordByWord(inputText, {
+        ...commonOptions,
+        lang: selectedLang
+      }, (idx) => setActiveWordIdx(idx));
+    } else if (playMode === 'syllable') {
+      // Pengejaan Suku Kata (untuk kata pertama atau kata terpilih)
+      const firstWord = inputText.trim().split(/\s+/)[0] || 'sibaliparriq';
+      speakSyllables(firstWord, {
+        ...commonOptions,
+        lang: 'mandar'
+      }, (sylIdx) => setActiveSylIdx(sylIdx));
+    } else {
+      // Kalimat Penuh Mengalir Alami
+      speakText(inputText, {
+        ...commonOptions,
+        lang: selectedLang
+      });
+    }
   };
 
   const handleStop = () => {
     stopSpeaking();
     setIsPlaying(false);
+    setActiveWordIdx(-1);
+    setActiveSylIdx(-1);
   };
 
-  const preprocessedMandar = selectedLang === 'mandar' ? preprocessMandarForTTS(inputText) : inputText;
+  // Toggle Perekaman Suara (Speech-to-Text)
+  const toggleSpeechRecognition = () => {
+    if (isListening) {
+      stopSpeechListening();
+      setIsListening(false);
+    } else {
+      setIsListening(true);
+      startSpeechListening({
+        onResult: (transcript, isFinal) => {
+          setInputText(transcript);
+          if (isFinal) {
+            setIsListening(false);
+          }
+        },
+        onError: () => {
+          setIsListening(false);
+        },
+        onEnd: () => {
+          setIsListening(false);
+        }
+      });
+    }
+  };
+
+  const wordsList = useMemo(() => {
+    return inputText.trim().split(/\s+/).filter(Boolean);
+  }, [inputText]);
+
+  const activeFirstWordSyllables = useMemo(() => {
+    const firstWord = wordsList[0] || 'sibaliparriq';
+    return hyphenateMandarSyllables(firstWord);
+  }, [wordsList]);
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-10 border border-mandar-sand-200 dark:border-slate-800 shadow-xl space-y-6">
@@ -125,24 +209,25 @@ export const AudioSpeechStudio: React.FC = () => {
         <div>
           <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-mandar-maroon-100 dark:bg-mandar-maroon-950 text-mandar-maroon-800 dark:text-mandar-gold-300 text-xs font-semibold mb-2">
             <Volume2 className="w-3.5 h-3.5" />
-            <span>Studio Pelafalan TTS Penutur Asli Mandar (Kemendikbud 2025)</span>
+            <span>Studio Pelafalan TTS & Pengenalan Suara Mandar 2-Arah</span>
           </div>
           <h3 className="text-2xl font-extrabold text-stone-900 dark:text-white flex items-center gap-2">
-            <span>Sintesis Suara AI Penutur Asli Mandar</span>
+            <span>Sintesis & Analisis Harfiah Penutur Asli</span>
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 font-bold">
               Suara Perempuan Asli
             </span>
           </h3>
           <p className="text-xs text-stone-500 dark:text-slate-400 mt-0.5">
-            Dilengkapi aturan alofon intervokalik (/b/→[w], /d/→[dz], /g/→[gh], /j/→[y]), sentak glotal koda [ʔ], dan pemenggalan geminasi silabis penutur asli wanita.
+            Mampu memisahkan kalimat campuran Mandar-Indonesia, mengeja suku kata, melafalkan per kata, dan mengenali suara mic Anda.
           </p>
         </div>
 
-        {/* Language Switcher */}
+        {/* Language Selector */}
         <div className="flex items-center p-1 rounded-2xl bg-mandar-sand-100 dark:bg-slate-800 border border-mandar-sand-200 dark:border-slate-700">
           {[
-            { id: 'mandar', label: 'Bahasa Mandar' },
-            { id: 'indonesia', label: 'Bahasa Indonesia' },
+            { id: 'mixed', label: 'Campuran' },
+            { id: 'mandar', label: 'Mandar' },
+            { id: 'indonesia', label: 'Indonesia' },
             { id: 'english', label: 'English' },
           ].map(l => (
             <button
@@ -163,13 +248,48 @@ export const AudioSpeechStudio: React.FC = () => {
         </div>
       </div>
 
+      {/* Mode Selector: Kalimat Panjang vs Per Kata vs Pengejaan Suku Kata */}
+      <div className="bg-gradient-to-r from-mandar-sand-100 to-amber-50 dark:from-slate-800 dark:to-slate-850 p-3 rounded-2xl border border-mandar-sand-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3">
+        <span className="text-xs font-bold uppercase tracking-wider text-stone-700 dark:text-slate-300 flex items-center gap-1.5">
+          <Activity className="w-4 h-4 text-mandar-maroon-700 dark:text-mandar-gold-400" />
+          <span>Pilihan Mode Pelafalan & Pengejaan:</span>
+        </span>
+
+        <div className="flex items-center space-x-1.5">
+          {[
+            { id: 'full', label: 'Kalimat Panjang Alami', icon: AlignLeft },
+            { id: 'word', label: 'Pelafalan Per Kata', icon: FileText },
+            { id: 'syllable', label: 'Pengejaan Suku Kata', icon: SpellCheck }
+          ].map(m => {
+            const Icon = m.icon;
+            return (
+              <button
+                key={m.id}
+                onClick={() => {
+                  handleStop();
+                  setPlayMode(m.id as typeof playMode);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                  playMode === m.id
+                    ? 'bg-mandar-maroon-700 text-white shadow-md'
+                    : 'bg-white dark:bg-slate-700 text-stone-700 dark:text-slate-300 border border-mandar-sand-200 dark:border-slate-600 hover:border-mandar-maroon-400'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{m.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Voice Character Profile Selection */}
       <div className="bg-mandar-sand-50/70 dark:bg-slate-850 p-4 rounded-2xl border border-mandar-sand-200 dark:border-slate-700/80">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div className="flex items-center space-x-2">
             <UserCheck className="w-4 h-4 text-mandar-maroon-700 dark:text-mandar-gold-400" />
             <span className="text-xs font-bold uppercase tracking-wider text-stone-700 dark:text-slate-300">
-              Pilihan Karakter Suara AI Penutur:
+              Pilihan Karakter Suara AI Penutur Asli:
             </span>
           </div>
           <button
@@ -185,7 +305,6 @@ export const AudioSpeechStudio: React.FC = () => {
           {[
             {
               id: 'indoq' as const,
-              gender: 'female',
               title: "Indoq Mandar (Perempuan)",
               badge: "Rekomendasi Utama",
               desc: "Suara ibu Mandar yang hangat, bijak, santun, dan sangat berwibawa.",
@@ -194,7 +313,6 @@ export const AudioSpeechStudio: React.FC = () => {
             },
             {
               id: 'kaka' as const,
-              gender: 'female',
               title: "Kaka Mandar (Perempuan)",
               badge: "Teman Belajar",
               desc: "Suara kakak pengajar yang ramah, artikulatif, ceria, dan jelas.",
@@ -203,7 +321,6 @@ export const AudioSpeechStudio: React.FC = () => {
             },
             {
               id: 'amboq' as const,
-              gender: 'male',
               title: "Amboq Mandar (Laki-laki)",
               badge: "Tetua Mandar",
               desc: "Suara pria Mandar berkarakter kokoh dan berwibawa layaknya pelaut.",
@@ -240,7 +357,7 @@ export const AudioSpeechStudio: React.FC = () => {
         </div>
       </div>
 
-      {/* Phonetic Rules Dropdown Explanation */}
+      {/* Phonetic Rules Dropdown */}
       {showRulesExplanation && (
         <div className="p-4 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 space-y-3">
           <div className="flex items-center gap-2 text-amber-900 dark:text-amber-300 font-bold text-xs">
@@ -263,7 +380,7 @@ export const AudioSpeechStudio: React.FC = () => {
 
       {/* Preset Buttons */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-xs text-stone-400 mr-1">Contoh Kalimat Sesuai Aturan:</span>
+        <span className="text-xs text-stone-400 mr-1">Contoh Sesuai Kaidah:</span>
         {PRESETS.map((p, i) => (
           <button
             key={i}
@@ -279,35 +396,133 @@ export const AudioSpeechStudio: React.FC = () => {
         ))}
       </div>
 
-      {/* Textarea Input */}
-      <div>
-        <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-slate-400 mb-2">
-          Ketik atau Tempel Kalimat Mandar yang Ingin Dilafalkan Penutur Asli:
-        </label>
+      {/* Textarea Input with Voice Recognition Mic Button */}
+      <div className="relative">
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-slate-400">
+            Ketik Teks atau Gunakan Suara Anda (Voice In):
+          </label>
+          {recognitionSupported && (
+            <button
+              onClick={toggleSpeechRecognition}
+              className={`px-3 py-1 rounded-full text-xs font-bold flex items-center space-x-1.5 transition-all ${
+                isListening
+                  ? 'bg-rose-600 text-white animate-pulse shadow-md ring-2 ring-rose-400'
+                  : 'bg-mandar-sand-100 dark:bg-slate-800 text-mandar-maroon-800 dark:text-mandar-gold-300 border border-mandar-sand-200 dark:border-slate-700 hover:bg-mandar-sand-200'
+              }`}
+            >
+              {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+              <span>{isListening ? 'Mendengarkan... (Klik untuk stop)' : 'Bicara Lewat Mikrofon'}</span>
+            </button>
+          )}
+        </div>
+
         <textarea
           rows={3}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="Ketik kalimat panjang di sini..."
+          placeholder="Ketik kalimat Mandar, Indonesia, atau campuran di sini..."
           className="w-full p-4 rounded-2xl bg-mandar-sand-50 dark:bg-slate-800 border-2 border-mandar-sand-200 dark:border-slate-700 focus:border-mandar-maroon-600 outline-none text-base text-stone-800 dark:text-white resize-none"
         />
       </div>
 
-      {/* Mandar Phonetic Transformation Preview */}
-      {selectedLang === 'mandar' && (
-        <div className="p-3.5 rounded-xl bg-mandar-sand-50 dark:bg-slate-800/60 border border-mandar-sand-200 dark:border-slate-700 text-xs text-stone-600 dark:text-slate-400 space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-mandar-maroon-800 dark:text-mandar-maroon-300 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-mandar-gold-600" />
-              <span>Transkripsi Fonetik Penutur Asli (Alofon, Glotal & Geminasi):</span>
-            </span>
-            <span className="text-[10px] text-stone-400">Aturan Balai Bahasa Aktif</span>
+      {/* Visual Word-by-Word Live Pronunciation Tracker */}
+      {playMode === 'word' && isPlaying && (
+        <div className="p-4 rounded-2xl bg-mandar-navy-900 text-white space-y-2 border border-mandar-navy-700 animate-in fade-in">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-sky-400">
+            Pelafalan Per Kata Sedang Berlangsung:
+          </span>
+          <div className="flex flex-wrap gap-2 text-base font-semibold">
+            {wordsList.map((word, wIdx) => (
+              <span
+                key={wIdx}
+                className={`px-2.5 py-1 rounded-lg transition-all ${
+                  activeWordIdx === wIdx
+                    ? 'bg-mandar-gold-500 text-stone-950 scale-110 font-bold shadow-lg ring-2 ring-white'
+                    : 'bg-white/10 text-slate-300'
+                }`}
+              >
+                {word}
+              </span>
+            ))}
           </div>
-          <p className="font-mono text-stone-800 dark:text-slate-200 bg-white dark:bg-slate-900 p-2 rounded-lg border border-mandar-sand-200 dark:border-slate-700 text-xs">
-            {preprocessedMandar}
-          </p>
         </div>
       )}
+
+      {/* Visual Syllable-by-Syllable Spelling Tracker */}
+      {playMode === 'syllable' && (
+        <div className="p-4 rounded-2xl bg-mandar-maroon-950 text-white space-y-2 border border-mandar-maroon-800 animate-in fade-in">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-mandar-gold-400">
+            Pengejaan Suku Kata (Kata: &quot;{wordsList[0] || 'sibaliparriq'}&quot;):
+          </span>
+          <div className="flex items-center gap-2 text-lg font-bold">
+            {activeFirstWordSyllables.map((syl, sIdx) => (
+              <span
+                key={sIdx}
+                className={`px-3 py-1.5 rounded-xl border font-mono transition-all ${
+                  activeSylIdx === sIdx
+                    ? 'bg-mandar-gold-500 text-stone-950 border-white scale-110 shadow-lg'
+                    : 'bg-white/10 text-mandar-sand-200 border-white/20'
+                }`}
+              >
+                [{syl}]
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* DETEKSI BAHASA & PEMISAHAN KALIMAT CAMPURAN */}
+      <div className="p-4 rounded-2xl bg-mandar-sand-50 dark:bg-slate-800/80 border border-mandar-sand-200 dark:border-slate-700 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-mandar-sand-200 dark:border-slate-700 pb-2">
+          <div className="flex items-center space-x-2">
+            <Split className="w-4 h-4 text-mandar-maroon-700 dark:text-mandar-gold-400" />
+            <span className="text-xs font-bold text-stone-900 dark:text-white">
+              Pemisahan Kalimat Campuran (Code-Switching) & Deteksi Bahasa:
+            </span>
+          </div>
+          <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+            {languageAnalysis.detectedSummary}
+          </span>
+        </div>
+
+        {/* Segments Visualization */}
+        <div className="space-y-1.5">
+          <span className="text-[11px] text-stone-500 dark:text-slate-400 font-semibold block">
+            Segmen Terpilah untuk Pelafalan Akurat:
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {languageAnalysis.segments.map((seg, idx) => (
+              <div 
+                key={idx}
+                className={`px-3 py-1.5 rounded-xl border text-xs flex items-center space-x-1.5 ${
+                  seg.isMandar
+                    ? 'bg-mandar-maroon-50 dark:bg-mandar-maroon-950/60 border-mandar-maroon-300 dark:border-mandar-maroon-800 text-mandar-maroon-900 dark:text-mandar-gold-300'
+                    : 'bg-sky-50 dark:bg-sky-950/60 border-sky-300 dark:border-sky-800 text-sky-900 dark:text-sky-300'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${seg.isMandar ? 'bg-mandar-maroon-600' : 'bg-sky-500'}`} />
+                <span className="font-bold uppercase text-[10px] mr-1">
+                  {seg.isMandar ? '[Mandar]' : '[Indonesia]'}
+                </span>
+                <span>{seg.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Literal Translation Gloss */}
+        {languageAnalysis.literalSentenceTranslation && (
+          <div className="pt-2 border-t border-mandar-sand-200 dark:border-slate-700">
+            <span className="text-[11px] font-bold text-stone-600 dark:text-slate-300 block mb-1">
+              Arti Harfiah Kata-per-Kata:
+            </span>
+            <p className="text-xs text-stone-700 dark:text-slate-300 italic bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-mandar-sand-200 dark:border-slate-700">
+              {languageAnalysis.literalSentenceTranslation}
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Audio Controls Bar */}
       <div className="p-4 rounded-2xl bg-gradient-to-r from-mandar-sand-100 to-white dark:from-slate-800 dark:to-slate-850 border border-mandar-sand-200 dark:border-slate-700 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -324,7 +539,14 @@ export const AudioSpeechStudio: React.FC = () => {
           >
             {isPlaying ? <Square className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white" />}
             <span>
-              {isPlaying ? 'Hentikan Suara' : `Lafalkan dengan Suara ${voiceProfile === 'amboq' ? 'Amboq' : voiceProfile === 'kaka' ? 'Kaka (Perempuan)' : 'Indoq (Perempuan)'}`}
+              {isPlaying 
+                ? 'Hentikan Suara' 
+                : playMode === 'word'
+                  ? 'Lafalkan Per Kata'
+                  : playMode === 'syllable'
+                    ? 'Eja Suku Kata'
+                    : `Lafalkan (${voiceProfile === 'amboq' ? 'Amboq' : 'Perempuan ' + voiceProfile})`
+              }
             </span>
           </button>
 
@@ -339,10 +561,9 @@ export const AudioSpeechStudio: React.FC = () => {
           )}
         </div>
 
-        {/* Sliders for Pitch and Rate */}
+        {/* Pitch & Rate Sliders */}
         <div className="flex flex-wrap items-center gap-4 text-xs w-full md:w-auto justify-end">
           
-          {/* Pitch Slider */}
           <div className="flex items-center space-x-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-stone-200 dark:border-slate-700">
             <span className="font-semibold text-stone-600 dark:text-slate-300">Nada (Pitch):</span>
             <span className="font-mono font-bold text-mandar-maroon-700 dark:text-mandar-gold-300">{speechPitch.toFixed(2)}x</span>
@@ -357,7 +578,6 @@ export const AudioSpeechStudio: React.FC = () => {
             />
           </div>
 
-          {/* Speed / Rate Slider */}
           <div className="flex items-center space-x-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-stone-200 dark:border-slate-700">
             <span className="font-semibold text-stone-600 dark:text-slate-300">Tempo:</span>
             <span className="font-mono font-bold text-mandar-maroon-700 dark:text-mandar-gold-300">{speechRate.toFixed(2)}x</span>

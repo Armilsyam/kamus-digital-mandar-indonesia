@@ -71,7 +71,7 @@ export const ALL_FEATURES: NavFeature[] = [
   { id: 'kalindaqdaq', label: 'Studio Kalindaqdaq (Metrum 8-7-8-7)', shortLabel: 'Kalindaqdaq', icon: Feather, category: 'budaya', isNew: true },
   { id: 'pappasang', label: 'Peribahasa & Pappasang Luhur', shortLabel: 'Pappasang', icon: Quote, category: 'budaya', isNew: true },
   { id: 'bintang', label: 'Navigasi Bintang & Kompas Angin', shortLabel: 'Navigasi Bintang', icon: Compass, category: 'budaya', isNew: true },
-  { id: 'budaya', label: 'Ensiklopedia Budaya Maritim', shortLabel: 'Budaya Maritim', icon: Compass, category: 'budaya' },
+  { id: 'budaya', label: 'Kamus Bergambar & Ilustrasi Budaya', shortLabel: 'Kamus Bergambar', icon: Compass, category: 'budaya', badge: 'Ilustrasi SVG' },
 
   // 4. EDUKASI, DATA & DUKUNGAN
   { id: 'guru', label: 'Generator Lembar Kerja Guru (PDF)', shortLabel: 'Lembar Guru', icon: GraduationCap, category: 'edukasi', isNew: true },

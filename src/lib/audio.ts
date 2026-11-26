@@ -1,12 +1,15 @@
 /**
  * Mandar, Indonesian & English Speech Synthesis Engine (Multi-Lingual TTS)
  * Dilengkapi Pemrosesan Fonotaktik Penutur Asli Mandar (Balai Bahasa Sulsel 2025)
- * Mendukung profil suara AI Perempuan (Indoq Mandar & Kaka Mandar) dengan
- * frekuensi fundamental, intonasi liris, alofon intervokalik, sentak glotal, dan geminasi.
+ * Mendukung profil suara AI Perempuan (Indoq Mandar & Kaka Mandar),
+ * Pemisahan Kalimat Campuran (Code-Switching Mandar-Indonesia),
+ * Mode Pengejaan Per Kata & Suku Kata, serta Pengenalan Suara (Speech-to-Text).
  */
 
+import { segmentMixedSentence, hyphenateMandarSyllables, analyzeSingleWord } from './languageDetector';
+
 export interface SpeechOptions {
-  lang?: 'mandar' | 'indonesia' | 'english';
+  lang?: 'mandar' | 'indonesia' | 'english' | 'mixed';
   rate?: number;
   pitch?: number;
   volume?: number;
@@ -20,6 +23,8 @@ export interface SpeechOptions {
 
 let activeUtterance: SpeechSynthesisUtterance | null = null;
 let cachedVoices: SpeechSynthesisVoice[] = [];
+let wordByWordTimer: NodeJS.Timeout | null = null;
+let activeRecognitionInstance: unknown = null;
 
 // Inisialisasi daftar suara sintetis dari browser
 if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -38,9 +43,15 @@ export function getAvailableVoices(): SpeechSynthesisVoice[] {
 }
 
 export function stopSpeaking() {
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
-    activeUtterance = null;
+  if (typeof window !== 'undefined') {
+    if (wordByWordTimer) {
+      clearTimeout(wordByWordTimer);
+      wordByWordTimer = null;
+    }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      activeUtterance = null;
+    }
   }
 }
 
@@ -63,7 +74,6 @@ export function findBestVoice(
   const voices = getAvailableVoices();
   if (!voices || voices.length === 0) return null;
 
-  // Jika ada preferensi nama spesifik
   if (preferredVoiceName) {
     const found = voices.find(v => v.name.toLowerCase().includes(preferredVoiceName.toLowerCase()));
     if (found) return found;
@@ -138,34 +148,20 @@ export function findBestVoice(
     }
   }
 
-  // Fallback ke suara bahasa terkait atau yang pertama
   return voices.find(v => v.lang.toLowerCase().startsWith(targetPrefix)) || voices[0] || null;
 }
 
 /**
  * Preprocessing khusus teks Mandar untuk audio sintesis penutur asli wanita:
  * Mengikuti Pedoman Fonologi & Tata Bahasa Mandar (Kemendikbudristek & Balai Bahasa Sulsel):
- * 
- * 1. Glottal Stop Koda (Hamzah Akhir Suku Kata / Kata):
- *    - Ortografi Mandar menggunakan 'q' untuk sentakan glotis [ʔ].
- *    - Mesin TTS bahasa Indonesia melafalkan huruf 'k' pada posisi koda sebagai hentian glotis [ʔ] (seperti 'anak', 'bapak').
- *    - Mengubah 'q' di akhir kata menjadi 'k' menghasilkan pelafalan glotal koda penutur asli yang sempurna.
- * 
- * 2. Alofon Intervokalik (Pelemahan Konsonan Antara Dua Vokal):
- *    - V + b + V -> w (contoh: tabe -> tawe, sibaliparriq -> siwaliparrik, subu -> suwu)
- *    - V + d + V -> dz / r (contoh: madondong -> madzondong, poda -> podza)
- *    - V + g + V -> gh / velar frikatif (contoh: pago -> pagho, siga -> sigha)
- *    - V + j + V -> y (contoh: kaja -> kaya, majeppu -> mayeppu)
- * 
- * 3. Geminasi / Konsonan Kembar (pp, tt, kk, ss, rr, ll, mm, nn, bb, dd, cc, jj):
- *    - Dipecah menjadi jeda silabis mikro (contoh: pappasang -> pap-pasang, matte -> mat-te, tarra -> tar-ra).
+ * 1. Glottal Stop Koda: 'itaq' -> 'itak', 'malambiq' -> 'malambik'
+ * 2. Alofon Intervokalik: /b/ -> [w], /d/ -> [dz], /g/ -> [gh], /j/ -> [y]
+ * 3. Geminasi Silabis: 'pappasang' -> 'pap-pasang', 'matte' -> 'mat-te'
  */
 export function preprocessMandarForTTS(text: string): string {
   if (!text) return '';
   
-  // Hapus karakter dekoratif non-fonetik
   const cleaned = text.replace(/--|~/g, '');
-  
   const tokens = cleaned.split(/(\s+|[,.!?;:—–"«»()])/);
   
   const processed = tokens.map(token => {
@@ -182,13 +178,9 @@ export function preprocessMandarForTTS(text: string): string {
     w = w.replace(/(?<![jJ])([aiueoAIUEO])j([aiueoAIUEO])(?![jJ])/g, '$1y$2');
 
     // 2. Sentak glotal 'q':
-    // a. Glotal koda akhir kata (itaq -> itak, malambiq -> malambik, andiq -> andik)
     w = w.replace(/([aiueoAIUEO])q(?=$|[^a-zA-Z])/g, '$1k');
-    // b. Glotal pra-konsonan (paqmai -> pak-mai, saqra -> sak-ra, maqelo -> mak-elo)
     w = w.replace(/([aiueoAIUEO])q(?=[bcdfghjklmnprstvwxyzBCDFGHJKLMNPRSTVWXYZ])/g, '$1k-');
-    // c. Glotal intervokalik (daqa -> da'a, taqu -> ta'u)
     w = w.replace(/([aiueoAIUEO])q([aiueoAIUEO])/g, "$1'$2");
-    // d. Glotal sisa
     w = w.replace(/q/gi, 'k');
 
     // 3. Geminasi suku kata (konsonan kembar bertekanan khas Mandar)
@@ -201,6 +193,23 @@ export function preprocessMandarForTTS(text: string): string {
   });
   
   return processed.join('');
+}
+
+/**
+ * Pemisahan Cerdas Kalimat Campuran (Code-Switching Mandar-Indonesia):
+ * Bagian Mandar diproses dengan alofon/glotal Mandar,
+ * Bagian Indonesia tetap alami tanpa distorsi fonetik.
+ */
+export function preprocessMixedForTTS(text: string): string {
+  const segments = segmentMixedSentence(text);
+  const processedSegments = segments.map(seg => {
+    if (seg.isMandar) {
+      return preprocessMandarForTTS(seg.text);
+    }
+    // Bagian Indonesia tidak diubah ke alofon Mandar
+    return seg.text;
+  });
+  return processedSegments.join(' ');
 }
 
 /**
@@ -234,9 +243,9 @@ export function getMandarPhoneticRulesExplanation() {
       example: "pappasang [pap-pasang] → wasiat, matte [mat-te] → berlari, tarra [tar-ra] → kencang."
     },
     {
-      title: "Karakter Vokal Wanita (Indoq Mandar)",
-      description: "Disintesis pada frekuensi fundamental 220–250 Hz (pitch 1.16x–1.22x) dengan tempo artikulasi liris 0.88x yang santun.",
-      example: "Intonasi khas perempuan Mandar: lembut, berwibawa, dan berirama pantun (Kalindaqdaq)."
+      title: "Pemisahan Kalimat Campuran (Code-Switching)",
+      description: "Kalimat yang mencampurkan Mandar dan Indonesia dipisahkan secara cerdas agar kosakata Indonesia tidak ikut terdistorsi alofon Mandar.",
+      example: "Tabe itaq (Mandar), saya mau belajar (Indonesia) → terartikulasi sempurna."
     }
   ];
 }
@@ -259,20 +268,18 @@ export function speakText(text: string, options: SpeechOptions = {}) {
     onError
   } = options;
 
-  // Nilai pitch dan rate optimal berdasarkan gender dan profil suara
-  let defaultPitch = 1.16; // Pitch vokal wanita natural (220-250 Hz)
-  let defaultRate = 0.88;  // Tempo berbicara wanita Mandar yang teratur dan anggun
+  let defaultPitch = 1.16;
+  let defaultRate = 0.88;
 
   if (gender === 'female') {
     if (voiceProfile === 'indoq') {
-      defaultPitch = 1.15; // Suara ibu Mandar: bijak, santun, hangat
+      defaultPitch = 1.15;
       defaultRate = 0.86;
     } else if (voiceProfile === 'kaka') {
-      defaultPitch = 1.22; // Suara kakak pengajar: ramah, ceria, artikulatif
+      defaultPitch = 1.22;
       defaultRate = 0.90;
     }
   } else {
-    // Male
     defaultPitch = 0.92;
     defaultRate = 0.88;
   }
@@ -293,6 +300,9 @@ export function speakText(text: string, options: SpeechOptions = {}) {
   if (lang === 'mandar') {
     speechString = preprocessMandarForTTS(text);
     targetLocale = 'id-ID';
+  } else if (lang === 'mixed') {
+    speechString = preprocessMixedForTTS(text);
+    targetLocale = 'id-ID';
   } else if (lang === 'indonesia') {
     speechString = text.replace(/--|~/g, '');
     targetLocale = 'id-ID';
@@ -307,8 +317,7 @@ export function speakText(text: string, options: SpeechOptions = {}) {
   utterance.pitch = finalPitch;
   utterance.volume = volume;
 
-  // Pilih suara terbaik yang sesuai (khususnya suara perempuan penutur asli)
-  const matchedVoice = findBestVoice(lang, gender, preferredVoiceName);
+  const matchedVoice = findBestVoice(lang === 'english' ? 'english' : 'mandar', gender, preferredVoiceName);
   if (matchedVoice) {
     utterance.voice = matchedVoice;
   }
@@ -330,6 +339,199 @@ export function speakText(text: string, options: SpeechOptions = {}) {
   };
 
   window.speechSynthesis.speak(utterance);
+}
+
+/**
+ * Mode Pelafalan Per Kata dengan Penanda Visual Real-time
+ */
+export function speakWordByWord(
+  text: string, 
+  options: SpeechOptions = {}, 
+  onWordIndexChange?: (index: number) => void
+) {
+  if (typeof window === 'undefined' || !text) return;
+  stopSpeaking();
+
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return;
+
+  let currentIndex = 0;
+
+  const playNextWord = () => {
+    if (currentIndex >= words.length) {
+      if (onWordIndexChange) onWordIndexChange(-1);
+      if (options.onEnd) options.onEnd();
+      return;
+    }
+
+    if (onWordIndexChange) onWordIndexChange(currentIndex);
+
+    const rawWord = words[currentIndex];
+    const analyzed = analyzeSingleWord(rawWord);
+    const isMandar = analyzed.lang === 'mandar' || options.lang === 'mandar';
+    const processedWord = isMandar ? preprocessMandarForTTS(rawWord) : rawWord;
+
+    const utterance = new SpeechSynthesisUtterance(processedWord);
+    utterance.lang = 'id-ID';
+    utterance.rate = options.rate || 0.82;
+    utterance.pitch = options.pitch || 1.16;
+
+    const matchedVoice = findBestVoice('mandar', options.gender || 'female');
+    if (matchedVoice) utterance.voice = matchedVoice;
+
+    utterance.onend = () => {
+      currentIndex++;
+      wordByWordTimer = setTimeout(playNextWord, 200); // jeda mikro antar kata
+    };
+
+    utterance.onerror = () => {
+      currentIndex++;
+      wordByWordTimer = setTimeout(playNextWord, 200);
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  if (options.onStart) options.onStart();
+  playNextWord();
+}
+
+/**
+ * Mode Pengejaan Suku Kata (Syllable Spelling Breakdown)
+ * Mengeja kata suku per suku secara terpisah dan mendidik
+ */
+export function speakSyllables(
+  word: string, 
+  options: SpeechOptions = {}, 
+  onSyllableChange?: (sylIndex: number) => void
+) {
+  if (typeof window === 'undefined' || !word) return;
+  stopSpeaking();
+
+  const syllables = hyphenateMandarSyllables(word);
+  if (syllables.length === 0) return;
+
+  let currentIndex = 0;
+
+  const playNextSyllable = () => {
+    if (currentIndex >= syllables.length) {
+      if (onSyllableChange) onSyllableChange(-1);
+      if (options.onEnd) options.onEnd();
+      return;
+    }
+
+    if (onSyllableChange) onSyllableChange(currentIndex);
+
+    const syl = syllables[currentIndex];
+    const processedSyl = preprocessMandarForTTS(syl);
+
+    const utterance = new SpeechSynthesisUtterance(processedSyl);
+    utterance.lang = 'id-ID';
+    utterance.rate = options.rate || 0.76; // lebih lambat untuk pengejaan
+    utterance.pitch = options.pitch || 1.20;
+
+    const matchedVoice = findBestVoice('mandar', options.gender || 'female');
+    if (matchedVoice) utterance.voice = matchedVoice;
+
+    utterance.onend = () => {
+      currentIndex++;
+      wordByWordTimer = setTimeout(playNextSyllable, 260); // jeda silabis
+    };
+
+    utterance.onerror = () => {
+      currentIndex++;
+      wordByWordTimer = setTimeout(playNextSyllable, 260);
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  if (options.onStart) options.onStart();
+  playNextSyllable();
+}
+
+/**
+ * Modul Pengenalan Suara (Speech Recognition / Voice-to-Text)
+ * Mendukung masukan suara 2 arah pengguna ke AI
+ */
+export function isSpeechRecognitionSupported(): boolean {
+  if (typeof window === 'undefined') return false;
+  return 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+}
+
+export interface SpeechRecognitionCallbacks {
+  onResult: (transcript: string, isFinal: boolean) => void;
+  onError: (error: string) => void;
+  onEnd: () => void;
+  onStart?: () => void;
+}
+
+export function startSpeechListening(callbacks: SpeechRecognitionCallbacks, lang: string = 'id-ID') {
+  if (!isSpeechRecognitionSupported()) {
+    callbacks.onError('Browser Anda belum mendukung pengenalan suara otomatis.');
+    return null;
+  }
+
+  try {
+    const SpeechRecClass = (window as unknown as { SpeechRecognition: unknown }).SpeechRecognition || 
+                           (window as unknown as { webkitSpeechRecognition: unknown }).webkitSpeechRecognition;
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recognition = new (SpeechRecClass as any)();
+    recognition.lang = lang;
+    recognition.continuous = false;
+    recognition.interimResults = true;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onresult = (event: any) => {
+      let interim = '';
+      let final = '';
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          final += event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+
+      const text = final || interim;
+      callbacks.onResult(text, Boolean(final));
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onerror = (e: any) => {
+      callbacks.onError(e.error || 'Terjadi kesalahan mikrofon');
+    };
+
+    recognition.onend = () => {
+      callbacks.onEnd();
+      activeRecognitionInstance = null;
+    };
+
+    if (callbacks.onStart) {
+      recognition.onstart = () => callbacks.onStart?.();
+    }
+
+    recognition.start();
+    activeRecognitionInstance = recognition;
+    return recognition;
+  } catch (err) {
+    callbacks.onError('Gagal mengaktifkan mikrofon');
+    return null;
+  }
+}
+
+export function stopSpeechListening() {
+  if (activeRecognitionInstance) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (activeRecognitionInstance as any).stop();
+    } catch {
+      // ignore
+    }
+    activeRecognitionInstance = null;
+  }
 }
 
 export function playWebAudioBeepSequence(text: string, onEnd?: () => void) {

@@ -32,9 +32,23 @@ import {
   Printer,
   Download,
   FileCheck,
-  BookMarked
+  BookMarked,
+  Mic,
+  MicOff,
+  Split,
+  Bookmark
 } from 'lucide-react';
-import { speakText, stopSpeaking } from '@/lib/audio';
+import { 
+  speakText, 
+  stopSpeaking,
+  startSpeechListening,
+  stopSpeechListening,
+  isSpeechRecognitionSupported
+} from '@/lib/audio';
+import { 
+  detectLanguageAndAnalyze, 
+  LanguageAnalysisResult 
+} from '@/lib/languageDetector';
 import { DictionaryEntry } from './DictionaryCard';
 import dictionaryEntries from '@/data/mandar_dictionary.json';
 import cultureData from '@/data/mandar_culture.json';
@@ -63,6 +77,7 @@ interface Message {
   isDiagnosticCheck?: boolean;
   diagnosticQuestion?: DiagnosticQuestion;
   evalResult?: FreeTextEvaluationResult;
+  languageAnalysis?: LanguageAnalysisResult;
 }
 
 interface DiagnosticQuestion {
@@ -156,12 +171,16 @@ export const KakaAI: React.FC<KakaAIProps> = ({
   onSelectEntry,
   onGoToTab,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'chat' | 'diagnosis' | 'evaluator' | 'mastery' | 'study_plan'>('chat');
+  const [activeSubTab, setActiveSubTab] = useState<'chat' | 'diagnosis' | 'evaluator' | 'mastery' | 'study_plan' | 'references'>('chat');
   
   // Learning Profile State (Real-time Adaptive)
   const [learningProfile, setLearningProfile] = useState<UserLearningProfile>(getUserLearningProfile);
   const [wordMasteries, setWordMasteries] = useState<Record<string, WordMasteryRecord>>(getAllWordMasteries);
   const [masteryFilter, setMasteryFilter] = useState<'all' | 'mahir' | 'sedang_belajar' | 'belum_paham'>('all');
+
+  // Voice Recognition State
+  const [isListening, setIsListening] = useState(false);
+  const recognitionSupported = isSpeechRecognitionSupported();
 
   // Certificate student name
   const [studentName, setStudentName] = useState('Pelajar Budaya Mandar');
@@ -172,7 +191,7 @@ export const KakaAI: React.FC<KakaAIProps> = ({
     {
       id: 'welcome-tutor',
       sender: 'kaka',
-      text: "Tabe! Salam budaya. Kaka senang sekali bertemu denganmu lagi! ⛵\n\nKaka adalah Teman Belajar Mandiri AI pribadimu. Kaka secara otomatis membaca catatan aktivitas dan riwayat belajarmu di platform ini untuk memahami materi mana yang sudah kamu kuasai dan mana yang masih perlu kita latih bersama.\n\nKamu bisa meminta Kaka menguji pemahamanmu, mengevaluasi penjelasanmu dalam kata-katamu sendiri, atau menguji kosakata yang baru saja kamu buka!",
+      text: "Tabe! Salam budaya. Kaka senang sekali mendampingi belajarmu! ⛵\n\nKaka adalah Teman Belajar Mandiri AI yang dibekali wawasan leksikografis Balai Bahasa 2025, manuskrip sejarah Pitu Baqbana Binanga & Pitu Ulunna Salu, serta kebudayaan maritim Mandar.\n\nKamu bisa berbicara langsung lewat mikrofon (Voice In 2-Arah), meminta diagnosis pemahaman, belajar kalimat campuran Mandar-Indonesia, atau menanyakan sejarah dan peribahasa leluhur!",
       lang: 'indonesia',
       timestamp: 'Baru saja'
     }
@@ -181,6 +200,27 @@ export const KakaAI: React.FC<KakaAIProps> = ({
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+
+  // Toggle Perekaman Suara 2-Arah
+  const toggleListening = () => {
+    if (isListening) {
+      stopSpeechListening();
+      setIsListening(false);
+    } else {
+      setIsListening(true);
+      startSpeechListening({
+        onResult: (transcript, isFinal) => {
+          setInputText(transcript);
+          if (isFinal) {
+            setIsListening(false);
+            handleSendMessage(transcript);
+          }
+        },
+        onError: () => setIsListening(false),
+        onEnd: () => setIsListening(false)
+      });
+    }
+  };
 
   // Free-Text Evaluator Sub-Tab State
   const [evaluatorTopic, setEvaluatorTopic] = useState('sandeq');
@@ -328,11 +368,14 @@ export const KakaAI: React.FC<KakaAIProps> = ({
     const text = (textToSend || inputText).trim();
     if (!text) return;
 
+    const analysis = detectLanguageAndAnalyze(text);
+
     const userMsg: Message = {
       id: `user-${Date.now()}`,
       sender: 'user',
       text: text,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      languageAnalysis: analysis
     };
 
     setMessages(prev => [...prev, userMsg]);
@@ -493,7 +536,57 @@ export const KakaAI: React.FC<KakaAIProps> = ({
       };
     }
 
-    // 7. Pencarian Kamus Spesifik
+    // 7. Wawasan Khusus: Sejarah Kerajaan Mandar (Pitu Baqbana Binanga & Pitu Ulunna Salu)
+    if (qLower.includes('kerajaan') || qLower.includes('pitu baqbana binanga') || qLower.includes('pitu ulunna salu') || qLower.includes('sejarah') || qLower.includes('maraqdia')) {
+      return {
+        id: `kaka-${Date.now()}`,
+        sender: 'kaka',
+        text: `🏛️ KHAZANAH SEJARAH & KERAJAAN MANDAR (SIPAMANDAR):\n\nSecara historis, persekutuan adat Mandar terbagi menjadi dua konfederasi agung yang bersaudara erat:\n\n1. ⛵ Pitu Baqbana Binanga (Tujuh Muara Sungai di Pesisir):\n• Balanipa (Bapak/Pemimpin Pertahanan)\n• Sendana (Ibu/Penasehat Luhur)\n• Banggae (Hakim Perdagangan)\n• Pamboang (Gerbang Laut)\n• Cenrana (Penjaga Batas)\n• Tappalang (Pertanian & Pasokan)\n• Mamuju (Ujung Utara Persekutuan)\n\n2. 🏔️ Pitu Ulunna Salu (Tujuh Hulu Sungai di Pegunungan):\nRante Bulahan, Aralle, Mambi, Bambang, Matangnga, Tabang, dan Tabulahan.\n\nKedua konfederasi diikat oleh sumpah suci "Allamungan Batu di Luyo": saling membela, saling membesarkan, dan tak terpisahkan selamanya! (Sumber rujukan: Naskah Kuno Lontar Pattodioloang Balanipa & Kajian Museum Mandar Majene).`,
+        timestamp
+      };
+    }
+
+    // 8. Wawasan Khusus: Tradisi Kuda Menari (Sayyang Pattuqduq)
+    if (qLower.includes('kuda') || qLower.includes('sayyang') || qLower.includes('pattuqduq') || qLower.includes('khatam')) {
+      return {
+        id: `kaka-${Date.now()}`,
+        sender: 'kaka',
+        text: `🐎 TRADISI AGUNG SAYYANG PATTUQDUD (KUDA MENARI MANDAR):\n\nSayyang Pattuqduq adalah tradisi warisan leluhur Mandar untuk mensyukuri dan memuliakan anak yang telah menuntaskan bacaan 30 Juz Al-Qur'an (Marrattas Al-Qur'an).\n\n✨ Karakteristik Unik:\n• Kuda terlatih yang menari berirama (mattuqduq) dengan langkah teratur dan menggelengkan kepala mengikuti ketukan rebana parrawana.\n• Dihiasi pelana sulaman khas, payung ulu-ulu adat, dan kalung genta perak.\n• Sepanjang arak-arakan, para tetua melantunkan syair Kalindaqdaq berisi petuah budi pekerti dan doa keselamatan.\n\nTradisi ini telah diakui secara resmi sebagai Warisan Budaya Takbenda Indonesia (BPNB Kemendikbud). Mau Kaka buatkan bait Kalindaqdaq untuk mengarak Sayyang Pattuqduq?`,
+        timestamp
+      };
+    }
+
+    // 9. Wawasan Khusus: Maritim, Perahu Sandeq & Falsafah Passombal
+    if (qLower.includes('sandeq') || qLower.includes('passombal') || qLower.includes('sombal') || qLower.includes('maritim') || qLower.includes('bintang')) {
+      return {
+        id: `kaka-${Date.now()}`,
+        sender: 'kaka',
+        text: `⛵ ANATOMI & FILOSOFI MABAHARI PERAHU SANDEQ:\n\nPerahu Sandeq adalah mahakarya maritim suku Mandar, diakui sebagai perahu layar tanpa mesin tercepat di kawasan Austronesia.\n\n🔍 Anatomi Leksikografis:\n• Sombal Tanjaq: Layar segitiga gunting miring penangkap angin laut.\n• Pallayarang: Tiang utama bambu petung / kayu ulin yang sangat lentur.\n• Baratan & Tada: Cadik ganda bambu penyeimbang hantaman ombak Selat Makassar.\n• Guling: Kemudi dayung samping di buritan.\n• Navigasi Bintang: Passombal berpatokan pada Bintang Pari (Salib Selatan) & Bintang Kala (Scorpio).\n\n🌊 Falsafah Luhur: "Mellamun bomboq, mappasombo litaq" (Menenggelamkan keangkuhan ombak, memuliakan daratan tercinta). Laut bukanlah pemisah, melainkan jalan persaudaraan dan kehormatan hidup!`,
+        timestamp
+      };
+    }
+
+    // 10. Wawasan Khusus: Tenun Sutra Mandar (Lipaq Saqbe)
+    if (qLower.includes('tenun') || qLower.includes('saqbe') || qLower.includes('sureq') || qLower.includes('sarung')) {
+      return {
+        id: `kaka-${Date.now()}`,
+        sender: 'kaka',
+        text: `🧵 SUTRA TENUN LIDAQ SAQBE & MAKNA SIMBOLIK MOTIF (SUREQ):\n\nSarung sutra Mandar (Lipaq Saqbe) ditenun secara tradisional oleh para perempuan Mandar menggunakan alat gedongan (panetteq).\n\n🎨 4 Motif Utama & Makna Filosofisnya:\n1. Sureq Salaka: Garis putih perak yang melambangkan kemurnian hati dan keluhuran bangsawan Maraqdia.\n2. Sureq Padhadhang: Garis bilah pedang ksatria, simbol keberanian dan teguh memegang prinsip siriq.\n3. Sureq Balo Tappang: Kotak geometris besar marun tua, dikenakan para tetua adat (Tomakaka).\n4. Sureq Marasa: Warna cerah berseri dengan benang emas, melambangkan kebahagiaan pesta perkawinan.\n\nKamu bisa melihat visual corak dan mendengarkan lafalnya di tab "Ilustrasi Budaya"!`,
+        timestamp
+      };
+    }
+
+    // 11. Wawasan Khusus: Kuliner Khas (Jepa, Bau Peapi, Golla Kambu)
+    if (qLower.includes('kuliner') || qLower.includes('jepa') || qLower.includes('bau peapi') || qLower.includes('golla kambu') || qLower.includes('makanan')) {
+      return {
+        id: `kaka-${Date.now()}`,
+        sender: 'kaka',
+        text: `🍲 GASTRONOMI BAHARI TRADISIONAL MANDAR:\n\nKuliner Mandar memiliki cita rasa gurih, segar, dan tahan lama yang disesuaikan dengan kehidupan melaut:\n\n• Jepa Panettean: Makanan pokok berbahan singkong parut yang dipipihkan dan dipanggang di atas wajan tanah liat. Menjadi bekal utama pelaut karena awet berbulan-bulan di laut lepas!\n• Bau Peapi: Olahan ikan cakalang/tuna segar yang dimasak kuah kuning kental berbumbu kunyit, minyak kelapa Mandar, dan asam mangga muda (pao leqle).\n• Golla Kambu: Penganan manis khas Tinambung berbahan ketan, gula merah aren asli Balanipa, dan kelapa sangrai bertabur kacang tanah.\n\nKombinasi Jepa hangat dicelup kuah Bau Peapi adalah kenikmatan kuliner tiada tara masyarakat pesisir Mandar!`,
+        timestamp
+      };
+    }
+
+    // 12. Pencarian Kamus Spesifik
     const foundEntry = ALL_ENTRIES.find(e => qLower.includes(e.cleanLemma.toLowerCase()));
     if (foundEntry) {
       recordWordInteraction(foundEntry.cleanLemma, 'view', foundEntry.category, foundEntry.definition);
@@ -630,6 +723,18 @@ export const KakaAI: React.FC<KakaAIProps> = ({
           <GraduationCap className="w-4 h-4 text-amber-500" />
           <span>Kurikulum & Sertifikat Belajar</span>
         </button>
+
+        <button
+          onClick={() => setActiveSubTab('references')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all shrink-0 ${
+            activeSubTab === 'references'
+              ? 'bg-mandar-maroon-700 text-white shadow-md'
+              : 'text-stone-700 dark:text-slate-300 hover:bg-mandar-sand-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <BookOpen className="w-4 h-4 text-mandar-gold-500" />
+          <span>Pustaka Referensi Ilmiah</span>
+        </button>
       </div>
 
       {/* ======================================================== */}
@@ -724,6 +829,22 @@ export const KakaAI: React.FC<KakaAIProps> = ({
                         }`}
                       >
                         {msg.text}
+
+                        {/* User Language Detection & Literal Analysis Tag */}
+                        {!isKaka && msg.languageAnalysis && (
+                          <div className="mt-2 pt-2 border-t border-white/20 text-[11px] space-y-1">
+                            <div className="flex items-center space-x-1.5">
+                              <span className="px-2 py-0.5 rounded-md font-bold bg-white/20 text-white text-[10px]">
+                                🔍 {msg.languageAnalysis.detectedSummary}
+                              </span>
+                            </div>
+                            {msg.languageAnalysis.primaryLang !== 'indonesia' && msg.languageAnalysis.literalSentenceTranslation && (
+                              <p className="text-[10px] text-mandar-sand-200 italic">
+                                Arti Harfiah: {msg.languageAnalysis.literalSentenceTranslation}
+                              </p>
+                            )}
+                          </div>
+                        )}
 
                         {/* Interactive Diagnostic Quiz Block within Chat */}
                         {msg.isDiagnosticCheck && msg.diagnosticQuestion && (
@@ -831,14 +952,29 @@ export const KakaAI: React.FC<KakaAIProps> = ({
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="Tanyakan lema, minta kuis adaptif, atau ketik penjelasanmu sendiri untuk dinilai..."
+                placeholder={isListening ? "🎙️ Sedang mendengarkan suara Anda..." : "Tanyakan lema, minta kuis adaptif, atau bicara lewat mic..."}
                 className="flex-1 px-4 py-2.5 rounded-xl bg-mandar-sand-50 dark:bg-slate-800 border border-mandar-sand-200 dark:border-slate-700 text-xs sm:text-sm text-stone-900 dark:text-white outline-none focus:border-mandar-maroon-700"
               />
+
+              {recognitionSupported && (
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  className={`p-2.5 rounded-xl transition-all flex items-center justify-center shrink-0 ${
+                    isListening
+                      ? 'bg-rose-600 text-white animate-pulse shadow-md ring-2 ring-rose-400'
+                      : 'bg-mandar-sand-100 dark:bg-slate-800 text-mandar-maroon-800 dark:text-mandar-gold-300 hover:bg-mandar-sand-200 dark:hover:bg-slate-700 border border-mandar-sand-200 dark:border-slate-700'
+                  }`}
+                  title={isListening ? 'Hentikan Mendengarkan' : 'Bicara Langsung (Voice In 2-Arah)'}
+                >
+                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </button>
+              )}
 
               <button
                 onClick={() => handleSendMessage()}
                 disabled={!inputText.trim()}
-                className="p-2.5 rounded-xl bg-mandar-maroon-700 hover:bg-mandar-maroon-800 disabled:opacity-40 text-white transition-colors"
+                className="p-2.5 rounded-xl bg-mandar-maroon-700 hover:bg-mandar-maroon-800 disabled:opacity-40 text-white transition-colors shrink-0"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -1519,6 +1655,120 @@ export const KakaAI: React.FC<KakaAIProps> = ({
               </div>
 
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODE 6: PUSTAKA REFERENSI & SUMBER ILMIAH KAKA-AI        */}
+      {/* ======================================================== */}
+      {activeSubTab === 'references' && (
+        <div className="space-y-6 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-mandar-sand-200 dark:border-slate-800 shadow-xl space-y-6">
+            
+            <div className="max-w-3xl">
+              <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-xs font-semibold mb-2">
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Pustaka Rujukan Leksikografi & Kebudayaan Mandar</span>
+              </div>
+              <h3 className="text-2xl sm:text-3xl font-extrabold text-stone-900 dark:text-white">
+                Basis Data Rujukan & Literatur Ilmiah Kaka-AI
+              </h3>
+              <p className="text-xs sm:text-sm text-stone-600 dark:text-slate-300 mt-1 leading-relaxed">
+                Seluruh wawasan, kaidah alofon, analisis morfologis, dan interpretasi kebudayaan yang dimiliki Kaka-AI disusun berlandaskan publikasi ilmiah resmi Balai Bahasa Kemendikdasmen, akademisi linguistik terkemuka, dan manuskrip kuno Lontar Pattodioloang.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {[
+                {
+                  title: "Kamus Bahasa Mandar - Indonesia (Edisi Mutakhir 2025)",
+                  institution: "Balai Bahasa Provinsi Sulawesi Selatan, Kemendikdasmen RI",
+                  author: "Tim Leksikografi Balai Bahasa Sulsel",
+                  year: "2025",
+                  desc: "Rujukan leksikografis baku terkini yang memuat lebih dari 7.000 lema bahasa Mandar, kaidah ortografi huruf Latin Mandar, sentakan glotal /q/ [ʔ], dan pemenggalan konsonan geminat.",
+                  actionLabel: "Eksplorasi di Kamus",
+                  tabTarget: "dictionary"
+                },
+                {
+                  title: "Struktur Bahasa Mandar & Morfosintaksis",
+                  institution: "Pusat Pembinaan dan Pengembangan Bahasa, Depdikbud",
+                  author: "Abdul Muthalib, Johannes F. Pattiasina, dkk.",
+                  year: "1974 / 1985",
+                  desc: "Penelitian ilmiah komprehensif mengenai tata bahasa, sistem pronomina persona Seri I, Seri II, Seri III (klitika), reduplikasi, dan afiksasi bahasa Mandar.",
+                  actionLabel: "Uji Morfologi Mandar",
+                  tabTarget: "morphology"
+                },
+                {
+                  title: "Tata Bunyi & Fonotaktik Alofonik Bahasa Mandar",
+                  institution: "Lembaga Penelitian Universitas Negeri Makassar",
+                  author: "Prof. Dr. H. Suradi Yasil",
+                  year: "2007",
+                  desc: "Kajian mendalam mengenai alofon intervokalik /b/ -> [w], /d/ -> [dz], /g/ -> [gh], /j/ -> [y], serta realisasi akustik geminasi kembar dalam dialek Balanipa dan Sendana.",
+                  actionLabel: "Laboratorium Fonologi",
+                  tabTarget: "fonologi"
+                },
+                {
+                  title: "Sastra Lisan Kalindaqdaq & Pappasang Leluhur",
+                  institution: "Dewan Kesenian Mandar & Dinas Kebudayaan Sulbar",
+                  author: "Drs. Idham Khalid Bodi & Prof. Suradi Yasil",
+                  year: "2016",
+                  desc: "Dokumentasi ratusan bait pantun klasik Kalindaqdaq 8-7-8-7 suku kata, peribahasa Pappasang to-Matoang, dan falsafah hidup kemaritiman Passombal.",
+                  actionLabel: "Studio Kalindaqdaq",
+                  tabTarget: "kalindaqdaq"
+                },
+                {
+                  title: "Perahu Sandeq & Etnonavigasi Bahari Mandar",
+                  institution: "Lembaga Kajian Budaya Bahari & Yayasan Sandeq",
+                  author: "Horst H. Liebner & Muhammad Ridwan Alimuddin",
+                  year: "2010",
+                  desc: "Studi terlengkap tentang rancang bangun, hidrodinamika layar gunting sombal tanjaq, cadik baratan, serta kompas navigasi bintang tradisional (Bintang Pari & Kala).",
+                  actionLabel: "Navigasi Bintang Mandar",
+                  tabTarget: "celestial"
+                },
+                {
+                  title: "Lontar Pattodioloang Balanipa & Pitu Baqbana Binanga",
+                  institution: "Museum Mandar Majene & Yayasan Kebudayaan Mandar",
+                  author: "Naskah Kuno Transliterasi Daeng Rioso",
+                  year: "Abad ke-16 (Transkripsi 1992)",
+                  desc: "Naskah lontar silsilah para Maraqdia (Raja) Balanipa, pembentukan persekutuan Pitu Baqbana Binanga (Tujuh Muara Pesisir) dan Pitu Ulunna Salu (Tujuh Hulu Sungai).",
+                  actionLabel: "Ensiklopedia Budaya",
+                  tabTarget: "encyclopedia"
+                }
+              ].map((ref, idx) => (
+                <div 
+                  key={idx}
+                  className="p-5 rounded-2xl bg-mandar-sand-50/70 dark:bg-slate-800/60 border border-mandar-sand-200 dark:border-slate-700 space-y-3 flex flex-col justify-between"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] text-stone-500 dark:text-slate-400">
+                      <span className="font-bold text-mandar-maroon-700 dark:text-mandar-gold-400">
+                        {ref.institution}
+                      </span>
+                      <span>Tahun: {ref.year}</span>
+                    </div>
+                    <h4 className="font-extrabold text-sm text-stone-900 dark:text-white">
+                      {ref.title}
+                    </h4>
+                    <p className="text-xs font-semibold text-stone-700 dark:text-slate-300">
+                      Penulis: {ref.author}
+                    </p>
+                    <p className="text-xs text-stone-600 dark:text-slate-400 leading-relaxed">
+                      {ref.desc}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => onGoToTab(ref.tabTarget)}
+                    className="w-full py-2 rounded-xl bg-white dark:bg-slate-900 border border-mandar-sand-300 dark:border-slate-700 hover:border-mandar-maroon-600 text-mandar-maroon-800 dark:text-mandar-gold-300 text-xs font-bold transition-all flex items-center justify-center space-x-1 shadow-sm"
+                  >
+                    <span>{ref.actionLabel}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
           </div>
         </div>
       )}
